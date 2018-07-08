@@ -17,19 +17,45 @@ urlcolor: cyan
 
 ## Title
 
-
+Iowa house price prediction using regression analysis
 
 ## Dataset description
 
+The Ames Housing Dataset describes the sale of Ames, Iowa housing properties from 2006 to 2010. It is composed by 80 explanatory variables (23 nominal, 23 ordinal, 14 discrete, and 20 continuous) describing many elements of thos houses that can potentially help to predict the house price. It also has 1460 observations that include the real price of the house which is the response we would like to work with.
 
+The observations are not limited to objective measurements like area or size, but also subjective measurements like rates of overall conditions.
+
+The predictors can be generally divided into 5 categories:
+
+- Sale characteristics
+- Space measurements
+- Quality ratings
+- Constructive characteristics and materials
+- Zone and location classification
+
+The following link has a description of each of the predictors: https://www.kaggle.com/c/house-prices-advanced-regression-techniques/data
+
+The dataset complies with all the requirements for the final project on STAT-420.
 
 ## Background
 
+This dataset was put together by Dean De Cock to be openly used on Data Science education. It was an effort towards upgrading a famous dataset about Boston Housing. The main purpose was to expand the amount of variables provided on the Boston Housing dataset so researchers could implement more complex methodologies and techniques.
 
+The link to the original paper can be found here: https://ww2.amstat.org/publications/jse/v19n3/decock.pdf
+
+The dataset is also openly available here: https://www.kaggle.com/c/house-prices-advanced-regression-techniques/data
 
 ## Motivation
 
+- Simplicity
+- Cleanness
+- Many variables available to test various methods.
+- We can take what we learned from here and apply it to more specific tasks with less amount of variables of data available.
 
+- Add questions here as well and how we are planning to answer them (which methods. This like an hypothesis)
 
 ## Load proof
 
+## References
+
+1. De Cock, Dean. (2011). Ames, Iowa: Alternative to the Boston Housing Data as an End of Semester Regression Project. Journal of Statistics Education.
