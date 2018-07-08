@@ -1,12 +1,16 @@
 library(readr)
 library(tibble)
 
-read_dataset = function() {
-    responses = read_csv("data/responses.csv")
+read_dataset = function(datafile) {
+    responses = read_csv(datafile)
     ## hack to coerce all character columns from a tibble to factor
     responses = as.data.frame(unclass(as.data.frame(responses)))
     responses = as_tibble(responses)
 }
 
-responses = read_dataset()
+#"data/responses.csv"
+responses = read_dataset("data/houseprices.csv")
+model = lm(Age ~ Weight, data = responses)
+summary(model)
+plot(model)
 
