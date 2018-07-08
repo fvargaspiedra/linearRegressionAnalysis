@@ -3,11 +3,11 @@ title: "Proposal - Final Project"
 author: "Hari Manan (NetID: nfnh2), Javier Matias (NetID: javierm4), Francisco Vargas Piedra (NetID: fav3)"
 date: 'July 17th, 2018'
 output:
-  md_document:
-    variant: markdown_github
-  pdf_document: default
   html_document: 
     toc: yes
+  pdf_document: default
+  md_document:
+    variant: markdown_github
 urlcolor: cyan
 ---
 
@@ -57,6 +57,15 @@ The dataset is also openly available here: https://www.kaggle.com/c/house-prices
 - Add questions here as well and how we are planning to answer them (which methods. This like an hypothesis)
 
 ## Load proof
+
+```{r message=FALSE}
+library(readr)
+
+data = read_csv("data/houseprices.csv")
+head(data$SalePrice)
+data
+```
+
 
 ## References
 
