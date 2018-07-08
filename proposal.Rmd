@@ -3,9 +3,11 @@ title: "Proposal - Final Project"
 author: "Hari Manan (NetID: nfnh2), Javier Matias (NetID: javierm4), Francisco Vargas Piedra (NetID: fav3)"
 date: 'July 17th, 2018'
 output:
+  md_document:
+    variant: markdown_github
+  pdf_document: default
   html_document: 
     toc: yes
-  pdf_document: default
 urlcolor: cyan
 ---
 

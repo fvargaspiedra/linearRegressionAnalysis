@@ -10,7 +10,6 @@ read_dataset = function(datafile) {
 
 #"data/responses.csv"
 responses = read_dataset("data/houseprices.csv")
-model = lm(Age ~ Weight, data = responses)
-summary(model)
-plot(model)
+str(responses)
+pairs(responses, col = "dodgerblue")
 
