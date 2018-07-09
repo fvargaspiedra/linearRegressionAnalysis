@@ -1,3 +1,5 @@
 proposal.html
 .idea
 .~lock*
+.RData
+.RHistory
