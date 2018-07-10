@@ -55,10 +55,10 @@ There are several reasons why the workgroup decided to use this dataset for the 
 2. **Cleanness**: from a research perspective, the proposed dataset doesn't seem to have many null or blank values. This will allow us to spend more time on research by implementing different methodologies and executing a deeper analysis, which is the core theme of this course.
 3. **Questions**: from a personal interest perspective, this dataset is related to a frequent activity: buying a house. This activity is so well-known that allows us to formulate some interesting questions we would love to answer through the completion of this project. We are also listing possible techniques we can apply to answer them:
     - **How effectively can we predict the price of a house given a set of explanatory variables?** A test/training set evaluation process can help us to measure the accuracy under acceptable error ranges.
-    - **Can we identify outliers that might be affecting the model?** Techniques like high-leverage, larger residuals, and hat matrices will be useful.
-    - **Are interactions models required to better predict the price of the houses?** Experimenting with dummy variables and interaction models is necessary to answer the question.
+    - **Can we identify unusual observations that might be affecting the model?** Understand leverage, outliers, and influential points in the model will allow us to identify unusual observations in our regressions model.
+    - **Are there any interactions between the variables affecting the price of the houses?** Experimenting with dummy variables and interaction models is necessary to answer the question.
     - **What are the most influential predictors?** Hypothesis tests might be the best path in this case.
-    - **Can we obtain a small model with a decent accuracy and easy to explain relationship between explanatory variables?** ANOVA analysis will be relevant for this question.
+    - **Can we build a reduced version of the model without sacrificing accuracy?** Use variable selection procedures, collinearity, and ANOVA evaluation to find a good model for the housing dataset from a set of possible models.
     - **Are transformations necessary to improve the accuracy of the model?** Transformation techniques and assumption tests might lead us to the answer.
 
 The questions and motivations exposed are not limited to this proposal. During the execution of the project some of them can change or a new set can appear. Our goal is to try to answer as much as we can.
