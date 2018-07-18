@@ -12,6 +12,9 @@ read_dataset = function(datafile) {
   ## We don't need this column
   data = data[, -which(names(data) %in% c("PID"))]
   
+  ## These numeric columns might make more sense as factor variables.
+  housing_data$Mo.Sold = as.factor(housing_data$Mo.Sold)
+  
   ## hack to coerce all character columns from a tibble to factor
   data = as.data.frame(unclass(as.data.frame(data)))
   data = as_tibble(data)
