@@ -10,9 +10,9 @@ read_dataset = function(datafile) {
   data$`Mas Vnr Area`[is.na(data$`Mas Vnr Area`)] = 0
   data$`BsmtFin SF 1`[is.na(data$`BsmtFin SF 1`)] = 0
   data$`BsmtFin SF 2`[is.na(data$`BsmtFin SF 2`)] = 0
-  data$`Bsmt Exposure`[is.na(data$`Bsmt Exposure`)] = 0
+  data$`Bsmt Exposure`[is.na(data$`Bsmt Exposure`)] = "None"
   data$`Bsmt Unf SF`[is.na(data$`Bsmt Unf SF`)] = 0 
-  data$`Bsmt Qual`[is.na(data$`Bsmt Qual`)] = 0
+  data$`Bsmt Qual`[is.na(data$`Bsmt Qual`)] = "None"
   data$`Garage Area`[is.na(data$`Garage Area`)] = 0 
   data$`Garage Yr Blt`[is.na(data$`Garage Yr Blt`)] = 0
   data$`Garage Cars`[is.na(data$`Garage Cars`)] = 0
@@ -54,6 +54,7 @@ read_dataset = function(datafile) {
   ## These observations have 0 recorded bedrooms, might be invalid.
   data = data[-which(data$Bedroom.AbvGr == 0),]
   
+  ## These observations are outliers.
   data = data[-which(data$SalePrice > 4e5),]
   data = data[-which(data$Gr.Liv.Area > 3e3),]
 
@@ -63,6 +64,7 @@ read_dataset = function(datafile) {
 
   ## This numeric columns might make more sense as factor variables.
   data$Mo.Sold = as.factor(data$Mo.Sold)
+  data$Yr.Sold = as.factor(data$Yr.Sold)
 
   return(as_tibble(data))
 }

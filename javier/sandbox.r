@@ -28,28 +28,30 @@ trn_idx  = sample(nrow(housing_data), size = trunc(0.80 * nrow(housing_data)))
 trn_data = housing_data[trn_idx, ]
 tst_data = housing_data[-trn_idx, ]
 
-stepwise_search_init_formula = formula(SalePrice ~ (Lot.Area + Overall.Qual + Overall.Cond + Year.Built + 
-                                                      Neighborhood + Gr.Liv.Area + Condition.1 + Exter.Qual + Bsmt.Qual + 
-                                                      Bsmt.Exposure + BsmtFin.SF.1 + BsmtFin.SF.2 + Total.Bsmt.SF + 
-                                                      Bedroom.AbvGr + Bldg.Type + Bsmt.Full.Bath + X1st.Flr.SF + 
-                                                      X2nd.Flr.SF + Kitchen.AbvGr + Kitchen.Qual + Street + Year.Remod.Add + 
-                                                      Functional + Fireplaces + Garage.Finish + Garage.Cars + Garage.Area + 
-                                                      Screen.Porch + Sale.Condition)^2)
+stepwise_search_init_formula = formula(SalePrice ~ (Overall.Qual + Gr.Liv.Area + Neighborhood + 
+                                                      BsmtFin.SF.1 + MS.SubClass + Kitchen.Qual + Bsmt.Exposure + 
+                                                      Year.Built + Overall.Cond + Garage.Cars + Sale.Condition + 
+                                                      Total.Bsmt.SF + Bsmt.Qual + Lot.Area + Fireplaces + Exter.Qual + 
+                                                      Bedroom.AbvGr + Functional + BsmtFin.SF.2 + Garage.Yr.Blt + 
+                                                      Screen.Porch + Year.Remod.Add + Condition.1 + Bsmt.Full.Bath + 
+                                                      Street + Garage.Area + Low.Qual.Fin.SF)^2)
 
-stepwise_search_result_formula = formula(SalePrice ~ Overall.Qual + Gr.Liv.Area + Neighborhood + 
-                                           BsmtFin.SF.1 + Bldg.Type + Year.Built + Overall.Cond + Total.Bsmt.SF + 
-                                           Garage.Cars + Kitchen.Qual + Bsmt.Exposure + Sale.Condition + 
-                                           Lot.Area + Bsmt.Qual + Fireplaces + Condition.1 + Bsmt.Full.Bath + 
-                                           Functional + Screen.Porch + Bedroom.AbvGr + Garage.Area + 
-                                           Year.Remod.Add + BsmtFin.SF.2 + Year.Built:Overall.Cond + 
-                                           Lot.Area:Garage.Area + Total.Bsmt.SF:Year.Remod.Add + Overall.Qual:Garage.Area + 
-                                           Gr.Liv.Area:Year.Remod.Add + Bedroom.AbvGr:Year.Remod.Add + 
-                                           Gr.Liv.Area:Total.Bsmt.SF + Year.Built:Bsmt.Full.Bath + Fireplaces:Bsmt.Full.Bath)
+stepwise_search_result_formula = formula(SalePrice ~ Overall.Qual + Gr.Liv.Area + Neighborhood + BsmtFin.SF.1 + 
+                                           MS.SubClass + Kitchen.Qual + Bsmt.Exposure + Year.Built + 
+                                           Overall.Cond + Garage.Cars + Sale.Condition + Total.Bsmt.SF + 
+                                           Lot.Area + Fireplaces + Screen.Porch + Bsmt.Full.Bath + BsmtFin.SF.2 + 
+                                           Functional + Year.Remod.Add + Bedroom.AbvGr + Condition.1 + 
+                                           Exter.Qual + BsmtFin.SF.1:Year.Built + Gr.Liv.Area:Sale.Condition + 
+                                           Overall.Qual:Total.Bsmt.SF + Overall.Qual:Garage.Cars + Gr.Liv.Area:Kitchen.Qual + 
+                                           Year.Built:Overall.Cond + Overall.Cond:Fireplaces + Gr.Liv.Area:Lot.Area + 
+                                           Overall.Qual:Lot.Area + Total.Bsmt.SF:Year.Remod.Add + Overall.Qual:Bsmt.Full.Bath + 
+                                           BsmtFin.SF.1:Bedroom.AbvGr + BsmtFin.SF.1:Lot.Area + Overall.Qual:Exter.Qual + 
+                                           BsmtFin.SF.1:Bsmt.Full.Bath)
 
 #null = lm(SalePrice ~ 1, data=housing_data)
 #full = lm(stepwise_search_init_formula, data = housing_data)
 model_add = lm(SalePrice ~ . , data=housing_data)
-#scope = list(lower=null,upper=full)
+scope = list(lower=null,upper=full)
 n = nrow(housing_data)
 #model = step(full, direction = "both", trace = 2, k = log(n))
 #model = step(null, direction = "both",scope=scope, trace = 2, k = log(n))
@@ -75,6 +77,7 @@ bptest(model)$p.value
 shapiro.test(resid(model))$p.value
 length(coef(model))
 
+summary(housing_data) 
 
 
 highly_influential_observations = cooks.distance(model) > 4 / length(cooks.distance(model))
@@ -88,10 +91,11 @@ par(mfrow=c(1,1))
 qqplot(model)
 par(mfrow=c(1,2))
 plot(model, pch=20, cex=.5)
+par(mfrow=c(1,1))
 
 
-without_neighborhood  = lm(SalePrice ~ . - Bedroom.AbvGr , data=housing_data)
-neighborhood_col      = glm(Bedroom.AbvGr ~ . - SalePrice, data=housing_data)
+without_neighborhood  = lm(SalePrice ~ . - Garage.Area , data=housing_data)
+neighborhood_col      = lm(Garage.Area~ . - SalePrice, data=housing_data)
 cor(resid(without_neighborhood),resid(neighborhood_col))
 
 
@@ -104,9 +108,8 @@ boxplot(SalePrice ~ Neighborhood, data = housing_data,las=2,
 
 
 (pairwise = with(housing_data, pairwise.t.test(SalePrice, Neighborhood, p.adj = "bonferroni")))
-table(housing_data$Electrical)
-#table(housing_data$Bedroom.AbvGr[!is.na(housing_data$SalePrice)])
-#View(housing_data[housing_data$Bedroom.AbvGr==0,c('Bedroom.AbvGr','Bldg.Type','Bsmt.Half.Bath','Bsmt.Full.Bath','SalePrice')])
+
+
 
 m<-as.table(pairwise$p.value)
 write.csv(m, file = "MyData.csv")
@@ -116,9 +119,18 @@ with(housing_data, interaction.plot(Neighborhood, Bedroom.AbvGr, SalePrice, lwd 
 with(housing_data, interaction.plot(Bedroom.AbvGr, Neighborhood, SalePrice, lwd = 2, col=1:8))
 
 
-interaction = aov(SalePrice ~ . + Neighborhood : Bedroom.AbvGr, data=housing_data)
+par(mfrow = c(1, 2))
+with(housing_data, interaction.plot(Neighborhood, Bedroom.AbvGr, SalePrice, lwd = 2, col=1:8))
+with(housing_data, interaction.plot(Bedroom.AbvGr, Neighborhood, SalePrice, lwd = 2, col=1:8))
+table(housing_data$Pool.QC)
+
+with(housing_data, interaction.plot(Neighborhood, Garage.Cars, SalePrice, lwd = 2, col=1:8))
+with(housing_data, interaction.plot(Garage.Cars, Neighborhood, SalePrice, lwd = 2, col=1:8))
+table(housing_data$Garage.Type)
+
+interaction = aov(SalePrice ~  Neighborhood * Garage.Cars, data=housing_data)
 summary(interaction)
-(tukey = TukeyHSD(aov(SalePrice ~ Neighborhood * Bedroom.AbvGr, data = housing_data),which=c('Neighborhood:Bedroom.AbvGr'), ordered=T))
+(tukey = TukeyHSD(aov(SalePrice ~ Neighborhood * Garage.Cars, data = housing_data),which=c('Neighborhood:Garage.Cars'), ordered=T))
 tukey$`Neighborhood:Bedroom.AbvGr`
 ?TukeyHSD
 qplot(y = SalePrice, x = GrLivArea, col= Neighborhood, data=housing_data)
