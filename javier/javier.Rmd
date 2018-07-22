@@ -30,7 +30,7 @@ source("plots.r")
 ```
 
 
-## Finding orthogonal predictors
+## Interaction Analysis
 
 Load the dataset and split it into training and testing data sets.
 ```{r message=FALSE, warning=FALSE}
@@ -42,9 +42,36 @@ test_data = splits$test
 ```
 
 
+
+I would like to know if the living area of a house is more valuable in some neighborhoods than others. We'll do an ANOVA for the interaction between these two predictors.
+```{r}
+interaction = aov(SalePrice ~  Neighborhood * Gr.Liv.Area, data=housing_data)
+model = lm(SalePrice ~  Neighborhood * Gr.Liv.Area, data=housing_data)
+(summary = summary(interaction)[[1]])
+```
+
+P-value of the interaction between Neighborhood and Living Area appears is very small (`r  summary[3,5]`), meaning that different Neighborhoods appear to place a higher value on living space.
+
+We'll plot the slopes of the 6 neighborhoods with the largest amount of observations.
+```{r}
+ordered_neigh = order(-table(housing_data$Neighborhood))
+interact_plot(model, pred=Gr.Liv.Area, modx=Neighborhood, color.class="Qual1",
+              modxvals = names(table(housing_data$Neighborhood)[ordered_neigh][1:6]))
+
+```
+
+We notice that the slops are different depending on the neighborhood. We'll do slope analysis to see which of the Gr.Liv.Area slopes are significant.
+```{r}
+(slopes = sim_slopes(model, pred=Gr.Liv.Area, modx=Neighborhood, johnson_neyman = FALSE,
+                     centered= "none", confint=T))
+```
+
+
+## Finding orthogonal predictors
+
 We'll first fit a simple additive model on the training data.
 
-```{r}
+```{r Stepwise-Search}
 model_add = lm(SalePrice ~ . , data=training_data)
 sigma(model_add) ## Residual standard error
 summary(model_add)$adj.r.squared
@@ -74,57 +101,3 @@ num_predictors = length(coef(model_selected))-1
 sqrt(sum((test_data$SalePrice - predict(model_selected, newdata=test_data))^2) / (nrow(test_data)-num_predictors) )
 
 ```
-```{r}
-stepwise_search_result_formula = formula(SalePrice ~ Overall.Qual + X1st.Flr.SF + X2nd.Flr.SF + Neighborhood + 
-                                           BsmtFin.SF.1 + Kitchen.Qual + Bldg.Type + Year.Built + Overall.Cond + 
-                                           Sale.Condition + Lot.Area + Garage.Cars + Bsmt.Exposure + 
-                                           Fireplaces + Screen.Porch + Bsmt.Full.Bath + Bsmt.Unf.SF + 
-                                           BsmtFin.SF.2 + Bsmt.Qual + Low.Qual.Fin.SF + Condition.1 + 
-                                           Year.Remod.Add + Overall.Qual:X1st.Flr.SF + Overall.Qual:Garage.Cars + 
-                                           BsmtFin.SF.1:Year.Built + Overall.Qual:Sale.Condition + Overall.Qual:X2nd.Flr.SF + 
-                                           Year.Built:Overall.Cond + X1st.Flr.SF:Kitchen.Qual + Overall.Qual:Bldg.Type + 
-                                           X1st.Flr.SF:Overall.Cond + Overall.Qual:Bsmt.Full.Bath + 
-                                           X1st.Flr.SF:Year.Built + BsmtFin.SF.1:Lot.Area + Bsmt.Full.Bath:Bsmt.Unf.SF + 
-                                           X2nd.Flr.SF:Year.Remod.Add + Overall.Cond:Year.Remod.Add)
-
-model_full = lm(stepwise_search_result_formula, data=training_data)
-
-model_full$xlevels[["Kitchen.Qual"]] <- union(model_full$xlevels[["Kitchen.Qual"]],
-                                           levels(test_data$Kitchen.Qual))
-
-### Residual Standard Error on training data
-sigma(model_full)
-
-num_predictors = length(coef(model_full))-1
-
-### Residual Standard Error on test data
-sqrt(sum((test_data$SalePrice - predict(model_full, newdata=test_data))^2) / (nrow(test_data)-num_predictors) )
-```
-
-
-
-## Interaction Analysis
-Now, I would like to know if the living area of a house is more valuable in some neighborhoods than others. We'll do an ANOVA for the interaction between these two predictors.
-```{r}
-interaction = aov(SalePrice ~  Neighborhood * Gr.Liv.Area, data=housing_data)
-model = lm(SalePrice ~  Neighborhood * Gr.Liv.Area, data=housing_data)
-(summary = summary(interaction)[[1]])
-```
-
-P-value of the interaction between Neighborhood and Living Area appears is very small (`r  summary[3,5]`), meaning that different Neighborhoods appear to place a higher value on living space.
-
-We'll plot the slopes of the 6 neighborhoods with the largest amount of observations.
-```{r}
-ordered_neigh = order(-table(housing_data$Neighborhood))
-interact_plot(model, pred=Gr.Liv.Area, modx=Neighborhood, color.class="Qual1",
-              modxvals = names(table(housing_data$Neighborhood)[ordered_neigh][1:6]))
-
-```
-
-We notice that the slops are different depending on the neighborhood. We'll do slope analysis to see which of the Gr.K slopes are significant.
-```{r}
-(slopes = sim_slopes(model, pred=Gr.Liv.Area, modx=Neighborhood, johnson_neyman = FALSE,
-                     centered= "none"))
-slopes$slopes
-```
-
