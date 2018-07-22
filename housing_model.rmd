@@ -1,0 +1,349 @@
+---
+title: "HousePrices"
+author: "Hari"
+date: "July 9, 2018"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+#install.packages("devtools")
+#devtools::install_github("hadley/readxl")
+
+library(readxl)
+
+
+housing_data = read_excel("data/AmesHousing.xls", na = "NA")
+
+View(housing_data)
+head(housing_data)
+
+class(housing_data)
+
+```
+
+Cleaning the data
+
+```{r}
+
+colSums(sapply(housing_data, is.na))
+# Removing the columns which have a lot of na's
+housing_data2 = subset(housing_data, select = -c( Alley, `Lot Frontage`,`Misc Feature`, Fence, `Fireplace Qu`, `Pool QC`))
+colSums(sapply(housing_data2, is.na))
+
+```
+
+- Omitting the NA values from the result
+
+```{r}
+housing_data2 = na.omit(housing_data2)
+
+```
+
+- Splitting the housing data set into train and test
+
+```{r}
+
+split <- sample(seq_len(nrow(housing_data2)), size = floor(0.8 * nrow(housing_data2)))
+train_hd <- housing_data2[split, ]
+test_hd <- housing_data2[-split, ]
+dim(train_hd)
+
+View(housing_data2)
+
+```
+
+- The training set contains 2142 observations and 76 variables. 
+
+Initial Model:
+
+- Response:
+
+SalePrice - Property's sale price in Dollars. 
+
+- Potential predicators:
+
+Lot Area
+Street
+Lot Shape
+Land Contour
+Lot Config
+Land Slope
+Neighborhood
+Bldg Type
+House Style
+Overall Qual
+Overall Cond : Overall condition rating
+Year Built : Original construction date
+Year Remod/Add : Remodel data
+Foundation
+Bsmt Qual
+Bsmt Cond
+Bsmt Exposure
+Bedroom AbvGr : Number of bedrooms above basement level
+Gr Liv Area : Above grade (ground) living area square feet
+Kitchen AbvGr
+Kitchen Qual   
+TotRms AbvGrd
+Garage Cars
+Pool Area
+Sale Condition
+
+
+
+
+```{r}
+initial_model <- lm(log(SalePrice) ~ `Lot Area` + Street + `Lot Shape` + `Land Contour` + `Lot Config` + `Land Slope` + Neighborhood + `Bldg Type` + `House Style` + `Overall Qual` + `Overall Cond` + `Year Built` + `Year Remod/Add` + Foundation + `Bsmt Qual` + `Bsmt Cond` + `Bsmt Exposure` + `Bedroom AbvGr` + `Gr Liv Area` + `Kitchen AbvGr` + `Kitchen Qual` + `TotRms AbvGrd` + `Garage Cars` + `Pool Area` + `Sale Condition`, data=train_hd)
+
+summary(initial_model)
+
+```
+
+- Backward Search
+Backward selection procedures start with all possible predictors in the model, then considers how deleting a single predictor will effect a chosen metric. Let’s try this. We will use the step() function in R which by default uses AIC as its metric of choice.
+
+
+```{r}
+
+initial_model_back_aic = step(initial_model, direction = "backward")
+
+
+```
+
+
+```{r}
+coef(initial_model_back_aic)
+
+```
+
+- We could also search through the possible models in a backwards fashion using BIC. To do so, we again use the step() function, but now specify k = log(n), where n stores the number of observations in the data.
+
+```{r}
+
+n = length(resid(initial_model))
+initial_model_back_bic = step(initial_model, direction = "backward", k = log(n))
+
+```
+
+```{r}
+coef(initial_model_back_bic)
+
+```
+
+- We note that this model is smaller, has fewer predictors, than the model chosen by AIC, which is what we would expect. Also note that while both models are different, neither uses correlated predictors.
+
+We can use information from the summary() function to compare their Adjusted R2 values. Note that either selected model performs better than the original full model.
+
+```{r}
+summary(initial_model)$adj.r.squared
+
+```
+
+```{r}
+summary(initial_model_back_aic)$adj.r.squared
+
+
+```
+
+```{r}
+
+summary(initial_model_back_bic)$adj.r.squared
+
+
+```
+
+
+
+- Exhaustive Search
+
+Full Additive Model
+
+```{r}
+housing_mod = lm(SalePrice ~ ., data = train_hd)
+
+```
+
+
+
+
+Backward, forward, and stepwise search are all useful, but do have an obvious issue. By not checking every possible model, sometimes they will miss the best possible model. With an extremely large number of predictors, sometimes this is necessary since checking every possible model would be rather time consuming, even with current computers.
+However, with a reasonably sized dataset, it isn’t too difficult to check all possible models. To do so, we will use the regsubsets() function in the R package leaps.
+
+```{r}
+library(leaps)
+all_housing_mod = summary(regsubsets(SalePrice ~ ., data = train_hd, really.big=T))
+
+
+```
+
+
+Let us look at the information stored in all_housing_mod
+
+
+
+```{r}
+all_housing_mod$which
+
+```
+
+
+Using $which gives us the best model, according to RSS, for a model of each possible size
+
+```{r}
+all_housing_mod$rss
+
+```
+
+Now that we have the RSS for each of these models, it is rather easy to obtain AIC, BIC, and Adjusted R2 since they are all a function of RSS Also, since we have the models with the best RSS for each size, they will result in the models with the best AIC, BIC, and Adjusted R2 for each size. Then by picking from those, we can find the overall best AIC, BIC, and Adjusted R2.
+
+Conveniently, Adjusted R2 is automatically calculated.
+
+
+```{r}
+
+all_housing_mod$adjr2
+
+```
+
+To find which model has the highest Adjusted R2 we can use the which.max() function.
+
+```{r}
+(best_r2_ind = which.max(all_housing_mod$adjr2))
+
+
+```
+
+We can then extract the predictors of that model.
+
+```{r}
+all_housing_mod$which[best_r2_ind, ]
+
+
+```
+
+
+We’ll now calculate AIC and BIC for the each of the models with the best RSS. To do so, we will need both n and the p for the largest possible model.
+
+```{r}
+
+p = length(coef(housing_mod))
+n = length(resid(housing_mod))
+
+```
+
+We’ll use the form of AIC which leaves out the constant term that is equal across all models. Since we have the RSS of each model stored, this is easy to calculate.
+
+```{r}
+housing_mod_aic = n * log(all_housing_mod$rss / n) + 2 * (2:p)
+
+
+```
+
+We can then extract the predictors of the model with the best AIC.
+```{r}
+best_aic_ind = which.min(housing_mod_aic)
+housing_mod_aic$which[best_aic_ind,]
+
+```
+
+
+```{r}
+plot(housing_mod_aic ~ I(2:p), ylab = "AIC", xlab = "p, number of parameters",
+pch = 20, col = "dodgerblue", type = "b", cex = 2, main = "AIC vs Model Complexity")
+
+
+```
+
+
+Creating a model with Predictors “TRUE” after using transformation
+
+```{r}
+credit_mod_big = lm(Balance ~ Income * log(Limit) + Rating + Age + Student + Cards + Age * Rating, data = Credit)
+
+```
+
+- Using BIC to return chosen model
+
+```{r}
+
+n = length(resid(initial_model))
+initial_model_back_bic = step(initial_model, direction = "backward", k = log(n))
+
+n = length(resid(credit_mod_big))
+credit_mod_back_bic = step(credit_mod_big, direction = "backward",
+k = log(n), trace = 0)
+
+# Removing outliers
+
+cd_credit_mod_big_bic = cooks.distance(credit_mod_back_bic)
+
+credit_mod_best_bic_fix = lm(credit_mod_big,data = Credit, subset = cd_credit_mod_big_bic <= 4/length(cd_credit_mod_big_bic))
+
+
+```
+
+
+```{r}
+mod_a = credit_mod_best_bic_fix
+
+```
+
+
+
+Creating graph to see fitted vs residual plot and QQ plot
+
+```{r}
+par(mfrow = c(1, 2))
+plot(fitted(mod_a), resid(mod_a), col = "grey", pch = 20,
+xlab = "Fitted", ylab = "Residuals", main = "Fitted versus Residuals")
+abline(h = 0, col = "darkorange", lwd = 2)
+qqnorm(resid(mod_a), main = "Normal Q-Q Plot", col = "darkgrey")
+qqline(resid(mod_a), col = "dodgerblue", lwd = 2)
+
+```
+
+
+
+- Tesing the Model:
+
+```{r}
+library(lmtest)
+
+get_bp_decision = function(model, alpha) {
+  decide = unname(bptest(model)$p.value < alpha)
+  ifelse(decide, "Reject", "Fail to Reject")
+}
+
+get_sw_decision = function(model, alpha) {
+  decide = unname(shapiro.test(resid(model))$p.value < alpha)
+  ifelse(decide, "Reject", "Fail to Reject")
+}
+
+get_num_params = function(model) {
+  length(coef(model))
+}
+
+get_loocv_rmse = function(model) {
+  sqrt(mean((resid(model) / (1 - hatvalues(model))) ^ 2))
+}
+
+get_adj_r2 = function(model) {
+  summary(model)$adj.r.squared
+}
+
+```
+
+
+```{r}
+get_loocv_rmse(mod_a)
+get_adj_r2(mod_a)
+get_bp_decision(mod_a, alpha = 0.01)
+get_num_params(mod_a)
+bptest(mod_a)$p.value
+
+
+```
+
