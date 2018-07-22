@@ -1,6 +1,7 @@
 library(readr)
 library(tibble)
 library(MASS)
+library(caret)
 
 read_dataset = function(datafile) {
   data = read_csv(datafile)
@@ -36,7 +37,8 @@ read_dataset = function(datafile) {
   data$`Bsmt Cond`[is.na(data$`Bsmt Cond`)] = "None"
   data$`Electrical`[is.na(data$`Electrical`)] = "None"
   data$`Mas Vnr Type`[is.na(data$`Mas Vnr Type`)] = "None"
-  data$`Misc Val`[is.na(data$`Misc Val`)] = "None"
+  data$`Misc Val`[is.na(data$`Misc Val`)] = 0
+  data$`Misc Feature`[is.na(data$`Misc Feature`)] = "None"
   data$`Garage Finish`[is.na(data$`Garage Finish`)] = "None"
   data$`Garage Qual`[is.na(data$`Garage Qual`)] = "None"
   data$`Garage Cond`[is.na(data$`Garage Cond`)] = "None"
@@ -46,28 +48,34 @@ read_dataset = function(datafile) {
   
   ## hack to coerce all character columns from a tibble to factor
   data = as.data.frame(unclass(as.data.frame(data)))
-
+  
   ## These two neighborhoods only have 1 and 2 observations respectively.
   ## Remove them from the dataset
   data = data[-which(data$Neighborhood %in% c("GrnHill","Landmrk")),]
-
+  
   ## These observations have 0 recorded bedrooms, might be invalid.
   data = data[-which(data$Bedroom.AbvGr == 0),]
   
   ## These observations are outliers.
   data = data[-which(data$SalePrice > 4e5),]
   data = data[-which(data$Gr.Liv.Area > 3e3),]
-
+  
   ## We don't need this column - this is an ID column.
   data = data[, -which(names(data) %in% c("PID"))]
   data = data[, -which(names(data) %in% c("Order"))]
-
+  
   ## This numeric columns might make more sense as factor variables.
   data$Mo.Sold = as.factor(data$Mo.Sold)
   data$Yr.Sold = as.factor(data$Yr.Sold)
-
+  
   return(as_tibble(data))
 }
+
+splitDataset = function(data) {
+  training = createDataPartition(data$SalePrice, times=1, p=0.80, list=FALSE)
+  return(list(train=data[training,], test=data[-training,]))
+}
+
 
 
 
