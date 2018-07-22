@@ -1,0 +1,146 @@
+---
+title: "Final Project"
+author: "Hari Manan (NetID: nfnh2), Javier Matias (NetID: javierm4), Francisco Vargas (NetID: fav3)"
+date: 'August 4th, 2018'
+output:
+  html_document: 
+    toc: yes
+  pdf_document: default
+urlcolor: cyan
+---
+
+## Students names
+
+- Hari Manan (NetID: nfnh2)
+- Javier Matias (NetID: javierm4)
+- Francisco Vargas (NetID: fav3)
+
+## Title
+
+Prediction of House Prices in Ames, Iowa Using Regression Analysis Techniques
+
+## Introduction
+
+The main goal of this project is to develop a model to predict the sale price of a house using a dataset gathered on Ames, Iowa related to houses sold between 2006 and 2010. The model not only should be good at predicting the price, but also avoid using all the features provided in order to reduce the complexity of explaining it. In other words, we are aiming to get a model with a balance between prediction and explanation.
+
+There are also practical questions that will be answered which can help a seller or buyer to understand specific characteristics that are important when determining the price of a house.
+
+The dataset originally contains 2930 observations with 81 features (23 nominal/categorical, 23 ordinal, 14 discrete, and 21 continuous).
+
+The features can be roughly divided into 6 categories. We include some examples of each category:
+
+- **House characteristics**: e.g. number of bedrooms, number of bathrooms, electrical system
+- **Space measurements**: e.g. lot area, living area
+- **Quality ratings**: e.g. overall condition, kitchen condition
+- **Construction characteristics and materials**: e.g. roof material
+- **Zone and location classification**: e.g. zoning classification, neighborhood
+- **Terms of sale**: e.g. month and year sold, sale price
+
+This dataset was compiled by Dean DeCock in 2011 to be used for Data Science education and research. It was an effort towards expanding a famous dataset about the housing market in Boston by adding variables to those already provided in the Boston Housing dataset.
+
+The link to the original paper can be found here: https://ww2.amstat.org/publications/jse/v19n3/decock.pdf
+
+The dataset is also openly available here: http://www.amstat.org/publications/jse/v19n3/decock/AmesHousing.xls
+
+There are several reasons why the team decided to use this dataset and why this is interesting to us. Most of them are related to research and personal motivations and are enumerated below:
+
+1. **Model simplification**: This dataset offers many variables. Even though accuracy tends to improve as the number of predictors increases, larger models also increase complexity and become more difficult to interpret. Complex models are also highly succeptible to overfitting. The goal of this project is to derive a model using a subset of the predictor variables while achieving a comparable level of performance.
+2. **Cleanness**: The dataset is well curated and does not require extensive cleansing. This will allow the team to focus on analyzing the data itself.
+3. **Questions**: From a personal interest perspective, this dataset is related to a frequent activity: buying a house. This is a well-known activity that allows for some interesting questions:
+    - **How effectively can we predict the price of a house given a set of explanatory variables?** A test/training set evaluation process can help us measure the accuracy under acceptable error ranges. This could give us some insight to answer other questions such as: *"Does the time of year affect the sale price of the house?"*
+    - **Can we identify unusual observations that might be affecting the model?** Understanding leverage, outliers, and influential points in the model will allow us to identify unusual observations in our regressions model.
+    - **Are there any interactions between the variables affecting the price of the houses?** Experimenting with dummy variables and interaction models might help answer questions such as: *"Do some neighborhoods value having a pool or a garage more than others?"*
+    - **What are the most influential predictors?** Hypothesis tests might be the best path in this case.
+    - **Can we build a reduced version of the model without sacrificing accuracy?** Use variable selection procedures, collinearity, and ANOVA evaluation to find a good model for the housing dataset from a set of possible models.
+    - **Are transformations necessary to improve the accuracy of the model?** Transformation techniques and assumption tests might lead us to the answer.
+
+## Method
+
+This section is devoted to execute all the calculations and operations necessary to achieve the goals exposed in the introductory section.
+
+The first step is to load the original data that is attached to this project in the `data` directory:
+
+```{r message=FALSE}
+library(readr)
+
+# Load the data
+housing_data = read_csv("data/AmesHousing.csv")
+```
+
+### Cleaning the data
+
+There are two useless variables. `PID` is a unique identifier of each observation and `Order` is a counter for each observations. Let's get rid of those:
+
+```{r}
+housing_data = subset(housing_data, select = -Order)
+housing_data = subset(housing_data, select = -PID)
+```
+
+Let's start by understanding the structure of the original data and clean it if needed.
+
+```{r}
+# Display structure of dataset
+str(housing_data)
+```
+
+From the previous output one can see that this dataset is composed by 2930 observations and 82 variables (80 when removing the two useless variables). There are only `chr` and `int` type variables. A description of each variable can be found here https://ww2.amstat.org/publications/jse/v19n3/decock/DataDocumentation.txt. 
+
+It's important to know whether there are `NA` values in the dataset and decide how to manage them. Let's see if there are variables containing `NA` values:
+
+```{r}
+hasNA = colSums(is.na(housing_data))[colSums(is.na(housing_data)) > 0]
+hasNA
+```
+
+As you can see `r length(hasNA)` variables contain `NA` values. Some of those variables have too many `NA`s, therefore we decided to remove any variable with more than 400 `NA`s:
+
+```{r}
+# Keep only those variables that has less than 400 NAs 
+#housing_data = housing_data[ , names(hasNA[hasNA < 400])]
+housing_data = subset(housing_data, select = colSums(is.na(housing_data)) < 400)
+```
+
+After filtering, we now have `r dim(housing_data)[1]` observations and `r dim(housing_data)[2]` variables.
+
+In order to avoid any issue with the remaining observations that have `NA`s we are removing those as well:
+
+```{r}
+housing_data = na.omit(housing_data)
+```
+
+After filtering, we now have `r dim(housing_data)[1]` observations and `r dim(housing_data)[2]` variables. These are enough observations to work on our model without any problem.
+
+There are 5 unusual observations that were pointed out by the author of the dataset. These are easily observable by plotting `SalePrice` (price of the house) vs `Gr Liv Area` (above ground living area square feet) as follows:
+
+```{r}
+plot(housing_data$SalePrice ~ housing_data$`Gr Liv Area`,
+     col = ifelse(housing_data$`Gr Liv Area` > 4000, "orange", "dodgerblue"),
+     xlab = "Ground Living Area (square feet)",
+     ylab = "Sale Price (dollars)",
+     main = "Sale Price vs Ground Living Area",
+     pch = 20
+     )
+```
+
+As you can see there are 3 points that have an extremely low price for a huge ground living area, this doesn't make sense. The other two points seem to be priced correctly but those are unusual sales. Let's remove them:
+
+```{r}
+housing_data = housing_data[housing_data$`Gr Liv Area` < 4000, ]
+```
+
+Finally, let's coerce all character columns as factors to fit the categorical predictors of the model without problem:
+
+```{r}
+# Determine variables that are of type character
+char_var = lapply(housing_data, class) == "character"
+# Coerce those columns to factor
+housing_data[, char_var] = lapply(housing_data[, char_var], as.factor)
+```
+
+## References
+
+1. De Cock, Dean. (2011). *Ames, Iowa: Alternative to the Boston Housing Data as an End of Semester Regression Project*. Journal of Statistics Education.
+2. *House Prices: Advanced Regression Techniques*. Obtained on July 9th, 2018, from: https://www.kaggle.com/c/house-prices-advanced-regression-techniques/data
+3. Dalpiaz, D. (2018). *Applied Statistics with R*. Obtained on July 9th, 2018, from: https://daviddalpiaz.github.io/appliedstats/
+4. De Cock, Dean. (2011). *Ames, Iowa house price dataset*. Obtained on July 9th, 2018, from: http://www.amstat.org/publications/jse/v19n3/decock/AmesHousing.xls
+5. De Cock, Dean. (2011). *Ames, Iowa house price dataset description*. Obtained on July 9th, 2018, from: https://ww2.amstat.org/publications/jse/v19n3/decock/DataDocumentation.txt
