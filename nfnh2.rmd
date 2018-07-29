@@ -1,0 +1,453 @@
+---
+title: "Proposal for Team project : Predictions on Residential Housing Price"
+author: "STAT 420, Summer 2018"
+date: ''
+output:
+  html_document: 
+    toc: yes
+  pdf_document: default
+urlcolor: cyan
+---
+
+
+** Housing Price Prediction** 
+
+***
+
+## Proposal Introduction  
+
+### Description of the dataset
+
+We propose to create a linear model that can predict residential home prices in Ames, Iowa based on several explanatory variables. This study is a practical example of using real world data that consists of a mix of different data types mostly - numerical and categorical variables.  
+
+The data set describes the sale of individual residential property in Ames, Iowa from 2006 to 2010 and contains 2,919 observations (combining the test and the train dataset values).  There are 80 explanatory variables involved in assessing home values. We are using 2 csv's one for training the model and one for testing the model.
+
+
+**`SalePrice` will be our response variable (numerical variable).**
+
+At first glance of the data we feel that some important variables in the dataset that have a correlation with sale price are:
+
+
+- $Neighborhood$: Physical locations within Ames city limits
+- $MSZoning$: Identifies the general zoning classification of the sale.
+- $HouseStyle$: Style of dwelling
+- $LotArea$:  Lot size in square feet.
+- $BldgType$: Type of dwelling
+- $OverallQual$: Overall material and finish quality.
+- $TotalBsmtSF$: Total square feet of basement area.
+- $YearBuilt$: Original construction date.
+- $Foundation$: Type of foundation
+- $BedroomAbvGr$: Bedrooms above grade (does NOT include basement bedrooms).
+- $BsmtFullBath$:  Full bathrooms above grade.
+- $GarageCars$: Size of garage in car capacity.
+- $YrSold$: Year Sold
+- $SaleCondition$: Condition of sale
+
+
+### Background information on the dataset 
+
+Inspired by ['Kaggle Competition'](https://www.kaggle.com/c/house-prices-advanced-regression-techniques), The Ames Housing dataset was compiled by Dean De Cock for use in data science education.
+
+The variables are a mix of numerical and categorical variables used in calculation of assessed values and included physical property measurements in addition to computation variables used in the city's assessment process. 
+
+
+### Interest on the dataset
+
+We picked this dataset as a group becasue of the following reasons:
+
+- We felt that it was easy to follow the data and come up with a use case to work on with this dataset.
+- With around 80 predictors available we felt that there is a lot of opportunity for us to apply different modelling techniques that we have learned so far in the course.
+- We might have to clean up the data to some extent before we can even use it. This provides us a scope to also learn how do clean up the datasets.
+ 
+
+### Evidence that the data can be loaded into R 
+
+Loading the data, and printing the first few values 
+```{r}
+library(readr)
+train_data = read_csv("train.csv") 
+```
+
+
+List the variables in train_data
+```{r}
+names(train_data)
+```
+
+List the structure of train_data
+```{r}
+ str(train_data)
+```
+
+Print first 10 rows of train_data
+```{r}
+ head(train_data, n=10)  
+```
+
+# Methods
+## Check the data
+We load the data and store it to variable `house_data`. Let's take a look on the data
+
+```{r, include=FALSE}
+library(readr)
+house_data = read_csv("train.csv")
+head(house_data)
+```
+
+```{r, echo=FALSE, fig.height=8, fig.width=8}
+par(mfrow=c(3,2))
+plot(SalePrice ~ GrLivArea, data = house_data, pch  = 20, cex  = 2, col  = "dodgerblue")
+hist(house_data$SalePrice, col = "dodgerblue",border = "darkorange")
+hist(house_data$GrLivArea, col = "dodgerblue",border = "darkorange")
+hist(house_data$LotArea, col = "dodgerblue",border = "darkorange")
+boxplot(SalePrice ~ OverallQual, data = house_data, pch = 20, cex = 2, col = "darkorange", border = "dodgerblue")
+boxplot(SalePrice ~ Neighborhood, data = house_data, pch = 20, cex = 2, col = "darkorange", border = "dodgerblue")
+```
+
+## Data Preprocessing
+###Change Predictor Name
+R doesn't allow variable name start with a number, thus we change some column names to comply with R variable definition.
+```{r}
+BadNames =  c(FirstFlrSF = "1stFlrSF", SecondFlrSF = "2ndFlrSF", ThreeSsnPorch = "3SsnPorch")
+
+for (i in 1:length(BadNames)) {
+  colnames(house_data)[which(colnames(house_data) == BadNames[i])] = names(BadNames[i])
+}
+```
+
+We stores all categorical predictor names in variable `CategoricalPredictors` and numerical predictor names in variable `NumericPredictors`.
+```{r, include=FALSE}
+CategoricalPredictors = c("MSSubClass", "MSZoning", "Street", "Alley", "LotShape",
+            "LandContour", "Utilities", "LotConfig", "LandSlope", 
+            "Neighborhood", "Condition1", "Condition2", "BldgType", 
+            "HouseStyle", "OverallQual", "OverallCond", "RoofStyle", 
+            "RoofMatl", "Exterior1st", "Exterior2nd", "MasVnrType",
+            "ExterQual", "ExterCond", "Foundation", "BsmtQual", 
+            "BsmtCond", "BsmtExposure", "BsmtFinType1", "BsmtFinType2", 
+            "Heating", "HeatingQC", "CentralAir", "Electrical", 
+            "KitchenQual", "Functional", "FireplaceQu", 
+            "GarageType","GarageFinish", "GarageQual", "GarageCond", 
+            "PavedDrive", "PoolQC", "Fence", "MiscFeature", 
+            "SaleType", "SaleCondition", "MoSold")
+
+NumericPredictors = colnames(house_data)[!colnames(house_data) %in% c(CategoricalPredictors, "Id")]
+```
+```{r}
+(CategoricalPredictors)
+(NumericPredictors)
+```
+
+###Missing Data
+- Remove predictor with too many NAs (> 20%). In our data, NA is not a invalid value for most categorical predictors, but too many NA makes this predictor not very useful.
+- Replace numerical NA with mean
+- Convert categorical predictor to factor and make NA an extra value
+
+```{r}
+rm_names = c()
+for(name in colnames(house_data)) {
+  nas = is.na(house_data[[name]])
+  
+  if(sum(nas) / nrow(house_data) > 0.2) {
+    print(paste("(", name, ") Removed"))
+    rm_names = c(rm_names, name)
+    
+  } else {
+    if(name %in% CategoricalPredictors) { #Categorical predictor
+      house_data[[name]] = factor(house_data[[name]], exclude = NULL)
+    } else{
+      if(sum(nas) > 0) {
+        house_data[[name]][nas] = mean(house_data[[name]][!nas])
+      }
+    }
+  }
+}
+
+house_data = house_data[, !colnames(house_data) %in% rm_names]
+
+#Remove these predictors from categorical predictors
+CategoricalPredictors = CategoricalPredictors[CategoricalPredictors %in% colnames(house_data)]
+#Remove these predictors from numerical predictors
+NumericPredictors = NumericPredictors[NumericPredictors %in% colnames(house_data)]
+```
+
+###Normalize Data
+According to the plots in section "Check the data", we can see distribution of `SalePrice` is not normalized (why it should be?). The variance of SalePrice ~ GrLivArea is also not constant. Check the summary of these 2 variables.
+```{r}
+summary(house_data$SalePrice)
+summary(house_data$GrLivArea)
+```
+The range of these 2 variables are pretty large. To extend this thinking, it is very likely some variables for space size (like: GrLivArea, LotArea) may have same characteristic. We can normalize and stablize the data through log transformation. 
+
+As the rule, we find the numerical predictors that have large range (max/min > 10) and replace it with log value.
+
+Note: It is not recommended to change the data directly and better to use model formula instead. We do this to help our later analysis and model selection.
+```{r}
+var_names = c()
+for(name in NumericPredictors) {
+  if(range(house_data[[name]])[1] > 0 && 
+     range(house_data[[name]])[2] / range(house_data[[name]])[1] > 10) {
+    var_names = c(var_names, name)
+  }
+}
+
+(var_names)
+```
+```{r}
+for(name in var_names) {
+  house_data[paste("Log_", name, sep = "")] = log(house_data[[name]])
+}
+
+house_data = house_data[, !colnames(house_data) %in% var_names]
+```
+
+We then replot the data.
+
+```{r, echo=FALSE, fig.height=8, fig.width=8}
+par(mfrow=c(3,2))
+plot(Log_SalePrice ~ Log_GrLivArea, data = house_data, pch  = 20, cex  = 2, col  = "dodgerblue")
+hist(house_data$Log_SalePrice, col = "dodgerblue",border = "darkorange")
+hist(house_data$Log_GrLivArea, col = "dodgerblue",border = "darkorange")
+hist(house_data$Log_LotArea, col = "dodgerblue",border = "darkorange")
+boxplot(Log_SalePrice ~ OverallQual, data = house_data, pch = 20, cex = 2, col = "darkorange", border = "dodgerblue")
+boxplot(Log_SalePrice ~ Neighborhood, data = house_data, pch = 20, cex = 2, col = "darkorange", border = "dodgerblue")
+```
+
+Except plot:`Log_SalePrice ~ Neighborhood` doesn't have much change, other plots look much better.
+
+###Combine Predictors
+```{r}
+#Combine FullBath and HalfBath
+house_data$Bath = house_data$FullBath + house_data$HalfBath * 0.5
+house_data = subset(house_data, select = -c(Id, FullBath, HalfBath))
+```
+
+```{r, message=FALSE, include=FALSE}
+#Utility functions
+library(lmtest)
+get_bp_decision = function(model, alpha) {
+  decide = unname(bptest(model)$p.value < alpha)
+  ifelse(decide, "Reject", "Fail to Reject")
+}
+
+get_sw_decision = function(model, alpha) {
+  decide = unname(shapiro.test(resid(model))$p.value < alpha)
+  ifelse(decide, "Reject", "Fail to Reject")
+}
+
+get_loocv_rmse = function(model) {
+  sqrt(mean((resid(model) / (1 - hatvalues(model))) ^ 2))
+}
+
+get_adj_r2 = function(model) {
+  summary(model)$adj.r.squared
+}
+
+plot_fitted_resid = function(model, pointcol = "dodgerblue", linecol = "darkorange") {
+  plot(fitted(model), resid(model), 
+       col = pointcol, pch = 20, cex = 1.5,
+       xlab = "Fitted", ylab = "Residuals")
+  abline(h = 0, col = linecol, lwd = 2)
+}
+
+plot_qq = function(model, pointcol = "dodgerblue", linecol = "darkorange") {
+  qqnorm(resid(model), col = pointcol, pch = 20, cex = 1.5)
+  qqline(resid(model), col = linecol, lwd = 2)
+}
+
+build_formula = function(response_name, predictor_names, interaction = 1) {
+  str_formula = paste(response_name, " ~ (")
+  
+  add_plus = FALSE
+  for (predictor_name in predictor_names) {
+    if(add_plus) str_formula = paste(str_formula, "+ ")
+    else add_plus = TRUE
+    
+    str_formula = paste(str_formula, predictor_name)
+  }
+  str_formula = paste(str_formula, ")")
+  
+  if(interaction > 1) str_formula = paste(str_formula, "^ ", interaction)
+  
+  as.formula(str_formula)
+}
+
+#Get predictor true name from dummy variable names
+get_predictor_name = function(all_names, dummy_names) {
+  names = c()
+  for(name in all_names) {
+    result = pmatch(name, dummy_names)
+    if(!is.na(result) && result > 0) {
+      names = c(names, name)
+    }
+  }
+  names
+}
+```
+
+##Predictor Selection
+We select the significant predictors that have high correlation with SalePrice.
+```{r}
+#We convert all factor variables to numeric in order to call cor()
+num_house_data = house_data
+for(name in colnames(num_house_data)){
+  if(is.factor(num_house_data[[name]])) 
+    num_house_data[[name]] = as.numeric(num_house_data[[name]])
+}
+
+all_cor = cor(num_house_data)
+(sig_cor = sort(abs(all_cor["Log_SalePrice", abs(all_cor["Log_SalePrice",]) > 0.5]), decreasing = TRUE)[-1])
+```
+
+We first build a model with predictors that has cor values > 0.5
+```{r, warning=FALSE}
+library(faraway)
+sig_model = lm(build_formula("Log_SalePrice", names(sig_cor)), data = house_data)
+summary(sig_model)$adj.r.squared
+sort(vif(sig_model)[vif(sig_model) > 5], decreasing = TRUE)
+```
+This model has good Adjusted R-squared value. However, we do see many predictors has high VIFs. Although, high VIFs won't cause big problem to prediction, too many correlated predictors dose impact our capability to search through other better models using interaction or polynomial. Strong colliearity could also cause problem to analyze high leverage and calculate LOOCV RMSE because not able to solve $\left(X^\top X\right)^{-1}$.
+
+We see `OverallQual` gives us the most trouble although VIF of `OverallQual2` is `r vif(sig_model)["OverallQual2"][[1]]`. Let's first try to remove this predictor and see what will happen.
+```{r}
+predictors = names(sig_cor)[names(sig_cor) != "OverallQual"]
+no_overallqual_model = lm(build_formula("Log_SalePrice", predictors), data = house_data)
+summary(no_overallqual_model)$adj.r.squared
+anova(no_overallqual_model, sig_model)[2, "Pr(>F)"]
+```
+However, after removing `OverallQual`, adjusted r-squared dropped `r summary(sig_model)$adj.r.squared - summary(no_overallqual_model)$adj.r.squared`, the significant test also reject the $OverallQual = 0$ hypothesis.  All these evidences mean `OverallQual` is useful for our predicction.
+
+If we check the `Log_SalePrice ~ OverallQual` plot above, we can see each value of `OverallQual` and the mapped mean of `Log_SalePrice` is quite linear. This means, increasing 1 score of `OverallQual` has constant change on `Log_SalePrice`. Therefore, we can convert this categorical predictor to numerical predictor.
+
+```{r}
+predictors = c(predictors, "OverallQual")
+house_data$OverallQual = as.numeric(house_data$OverallQual)
+model_1 = lm(build_formula("Log_SalePrice", names(sig_cor)), data = house_data)
+summary(model_1)$adj.r.squared
+```
+
+To handle the remaining predictors, we make a function so that we can remove the predictor one-by-one. The reason we do this one-by-one instead of removing all high VIF predictors is because removing of one high VIF predictor could lower the VIF of other predictors. We try to keep as many predictors as we can in order to improve prediction.
+
+```{r, warning=FALSE}
+optimize_vif = function(y_name, x_names, data, must_have = c(), nstep = 0) {
+  repeat {
+    m = lm(build_formula(y_name, x_names), data = data)
+    high_vifs = vif(m)[vif(m) > 5 & !names(vif(m)) %in% must_have]
+    if(length(high_vifs) == 0) break
+
+    #print(sort(high_vifs, decreasing = TRUE)[1])
+    rm_name = get_predictor_name(colnames(data), 
+                                 names(sort(high_vifs, decreasing = TRUE))[1])
+    x_names = x_names[x_names != rm_name]
+    
+    nstep = nstep - 1
+    if(nstep == 0) break
+  }
+  x_names
+}
+```
+
+Let's try this function by removing 2 highest VIF predictors and display them.
+```{r, warning=FALSE}
+saved_predictors = predictors
+predictors = optimize_vif("Log_SalePrice", predictors, data = house_data, must_have = c("OverallQual", "Log_GrLivArea"), nstep = 2)
+saved_predictors[!saved_predictors %in% predictors]
+```
+
+For the remaning variables, instead of checking them one by one, we do an exhausted search.
+```{r}
+library(leaps)
+all_mod = summary(regsubsets(build_formula("Log_SalePrice", predictors), data = house_data, nvmax = 20))
+all_mod$adjr2
+```
+
+We choose 13th model to balance between predictor numbers and Adjusted R-squared. We then remove all high VIF predictors.
+```{r}
+predictors = names(all_mod$which[13,])[all_mod$which[13,]][-1]
+predictors  = get_predictor_name(colnames(house_data), predictors)
+(predictors = optimize_vif("Log_SalePrice", predictors, data = house_data, 
+                           must_have = c("OverallQual", "Log_GrLivArea"), nstep = 2))
+```
+
+This give us a model that has no collinearity problem, easy to interpret and has reasonable prediction coverage.
+```{r}
+good_vif_model = lm(build_formula("Log_SalePrice", predictors), data = house_data)
+vif(good_vif_model)
+summary(good_vif_model)$r.squared
+```
+
+Notice that we can also remove all high VIF variable at the very begining. This will give us a model as:
+```{r, warning=FALSE}
+new_predictors = optimize_vif("Log_SalePrice", saved_predictors, 
+                              data = house_data, must_have = c("OverallQual", "Log_GrLivArea"))
+good_vif_model_2 = lm(build_formula("Log_SalePrice", new_predictors), data = house_data)
+vif(good_vif_model_2)
+summary(good_vif_model_2)$r.squared
+```
+
+Since this model has much more predictors and has no much gain on Adjusted R-squared, we will stick to model **`good_vif_model`**.
+
+## Optimize for LOOCV RMSE 
+Until now, we focus on finding model which is small and collinearity issue free. Since our goal is prediction, we now swith to find a model that has lowest LOOC RMSE. The `good_vif_model` model is a good start.
+
+Let's first check its LOOCV RMSE.
+```{r}
+get_loocv_rmse(good_vif_model)
+```
+
+Notice the model has no categorical predictor, we can try to add some categorical predictor we think is important. For example: Neighborhood.
+```{r}
+model_try = lm(build_formula("Log_SalePrice", c(predictors, "Neighborhood")), data = house_data)
+get_loocv_rmse(model_try)
+```
+
+The LOOCV RMSE dose improved. This gives us some confidence to find a model that has better LOOCV RMSE.
+
+Instead of trying to add/remove predictors manually, inspired by R `step()` function, we build a similar function to explore and find lowest LOOCV RMSE.
+
+```{r}
+step_loocv_rmse =  function(start_model, extra_predictors, data, trace = 1) {
+  min_rmse     = get_loocv_rmse(start_model)
+  res_var_name = names(attr(summary(start_model)$term,"dataClasses")[1])
+  
+  n            = length(attr(summary(start_model)$term,"dataClasses"))
+  pre_names    = names(attr(summary(start_model)$term,"dataClasses")[2:n])
+  
+  repeat {
+    a_rmse = rep(0, length(extra_predictors))
+    for(i in 1: length(extra_predictors)) {
+      model = lm(build_formula(res_var_name, c(extra_predictors[i], pre_names)), data = data)
+      a_rmse[i] = get_loocv_rmse(model)
+    }
+    
+    rmse_i = which.min(a_rmse)
+    if(min_rmse <= a_rmse[rmse_i]) {
+      break
+    }
+    if(trace == 1) print(paste("+", extra_predictors[rmse_i], " MOOCV RMSE:", a_rmse[rmse_i], sep = ""))
+    
+    pre_names        = c(pre_names, extra_predictors[rmse_i])
+    extra_predictors = extra_predictors[!extra_predictors == extra_predictors[rmse_i]]
+    
+    min_rmse         = a_rmse[rmse_i]
+  }
+  #print(pre_names)
+  lm(build_formula(res_var_name, pre_names), data = data)
+}
+```
+
+```{r}
+extra_predictors = colnames(house_data)[!colnames(house_data) %in% c(names(sig_cor), "Log_SalePrice", predictors)]
+final_model = step_loocv_rmse(good_vif_model, extra_predictors, data = house_data)
+```
+```{r}
+get_loocv_rmse(final_model)
+```
+
+
+#Results 
+
+-Kaggle score
+
+#Discussion
+- Improvement
+- Model Assumption
