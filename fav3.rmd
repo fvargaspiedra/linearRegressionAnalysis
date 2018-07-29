@@ -67,16 +67,18 @@ library(readr)
 housing_data = read_csv("data/AmesHousing.csv")
 ```
 
+We are using a 'csv' file that was derived from the original 'xls' file just to use the well known `read_csv` function.
+
 ### Cleaning the data
 
-There are two useless variables. `PID` is a unique identifier of each observation and `Order` is a counter for each observations. Let's get rid of those:
+There are two useless variables. `PID` is a unique identifier of each observation and `Order` is a counter for each observation. Let's get rid of those:
 
 ```{r}
 housing_data = subset(housing_data, select = -Order)
 housing_data = subset(housing_data, select = -PID)
 ```
 
-Let's start by understanding the structure of the original data and clean it if needed.
+Let's start by understanding the structure of the original data and clean as needed.
 
 ```{r}
 # Display structure of dataset
@@ -136,6 +138,153 @@ char_var = lapply(housing_data, class) == "character"
 # Coerce those columns to factor
 housing_data[, char_var] = lapply(housing_data[, char_var], as.factor)
 ```
+
+### Baseline analysis
+
+As stated in the `Introduction` the goal of the project is to obtain a model for predicting sales price, but trying to keep it simple. In other words, finding a good balance between prediction and explanation.
+
+Before playing around with model selection, let's divide the data into a training and a test set. That will help us evaluate the final model chosen. We'll use the seed `420` for any random process so we can reproduce the results if needed.
+
+```{r}
+set.seed(420)
+
+# Get training indexes randomly (80% of the observations)
+train_index <- sample(seq_len(nrow(housing_data)), size = floor(0.8 * nrow(housing_data)))
+
+# Divide the data
+train_hd <- housing_data[train_index, ]
+test_hd <- housing_data[-train_index, ]
+```
+
+After splitting the data we now have `r dim(train_hd)[1]` observations for training and `r dim(test_hd)[1]` observations for test.
+
+In order to assess our models we are going to use the set of auxiliary functions defined on week's 9 assignment. We are also defining a macro function that calls all those auxiliary functions and show the results in a single call. This overview encompasses the p-value of the normality and constant variance assumptions through Shapiro and Breusch test, the Fitted vs Residuals plot, the normal Q-Q plot, the number of parameters used (betas), the LOOCV RMSE, and the adjusted $R^2$.
+
+```{r}
+# Library required for Breusch-Pagan test
+library(lmtest)
+
+# Plot Fitted vs Residuals
+plot_fitted_resid = function(model) {
+  plot(fitted(model), resid(model), 
+       col = "dodgerblue", pch = 20, cex = 1.5,
+       xlab = "Fitted", ylab = "Residuals",
+       main = "Fitted vs residuals plot")
+  abline(h = 0, col = "darkorange", lwd = 1)
+}
+
+# Plot Normal Q-Q
+plot_qq = function(model) {
+  qqnorm(resid(model), col = "dodgerblue", pch = 20, cex = 1.5)
+  qqline(resid(model), col = "darkorange", lwd = 1)
+}
+
+# Breusch-Pagan test (constant variance)
+get_bp_decision = function(model) {
+  bptest(model)$p.value
+}
+
+# Shapiro-Wilk test (normality)
+get_sw_decision = function(model) {
+  shapiro.test(resid(model))$p.value
+}
+
+# Number of parameters
+get_num_params = function(model) {
+  length(coef(model))
+}
+
+# LOOCV RMSE
+get_loocv_rmse = function(model) {
+  sqrt(mean((resid(model) / (1 - hatvalues(model))) ^ 2))
+}
+
+# Adjusted R^2
+get_adj_r2 = function(model) {
+  summary(model)$adj.r.squared
+}
+
+# Function that combines the previously defined functions
+get_overview = function(model) {
+  plot_fitted_resid(model)
+  plot_qq(model)
+  loocv_rmse = get_loocv_rmse(model)
+  adj_r2 = get_adj_r2(model)
+  bp_p_value = get_bp_decision(model)
+  shapiro_p_value = get_sw_decision(model)
+  betas = get_num_params(model)
+  list(loocv_rmse = loocv_rmse, adj_r2 = adj_r2, bp_p_value = bp_p_value, shapiro_p_value = shapiro_p_value, betas = betas)
+}
+```
+
+We can start the process of finding our model by using an additive model as a baseline:
+
+```{r}
+model_add = lm(SalePrice ~ ., data = train_hd)
+```
+
+Let's run the overview function to assess this baseline model:
+
+```{r}
+get_overview(model_add)
+```
+
+From the results above you can note that there are troubles on every resulting parameter, except the adjusted $R^2$. LOOCV RMSE is `inf`, both assumptions are violated (p-values are very low), and the number of parameters used is huge (because of the categorical variables, we end up having more betas than the number of predictors available). The Fitted vs Residuals plot also seems to violate both, the 0 mean at any fitted value and the constant variance at any fitted value (no linearity and no constant variance).
+
+Based on the normal Q-Q plot is evident that there is a huge deviation at the edges of the plot. We can apply a log transformation on the response and check whether this minimizes the effect:
+
+```{r}
+model_add_log = lm(log(SalePrice) ~ ., data = train_hd)
+get_overview(model_add_log)
+```
+
+The Shapiro's p-value is worse, but the normal Q-Q plot looks better. This can be due to some outliers that can be observed on the plot. 
+
+The Fitted vs Residuals plot also looks better, especially the 0 mean at any fitted value. There are still some outliers and the variance seems to change for high fitted values.
+
+We tried to find outliers or influential points, but using the heuristics of the book is not possible to find any:
+
+```{r}
+# Number of influential points in the transformed model
+sum(cooks.distance(model_add_log) > 4 / length(cooks.distance(model_add_log)))
+
+# Number of outliers in the transformed model
+sum(abs(rstandard(model_add_log)) > 2)
+```
+
+We can also see the positive effect of the `log` function in the response by looking at its histogram. Without `log`:
+
+```{r}
+hist(train_hd$SalePrice, 
+     breaks = 30,
+     main = "Histogram of Sale Price without transformation",
+     xlab = "Sale Price",
+     col = "gray")
+```
+
+As you can see this plot is right skewed. This can be normalized by using `log`:
+
+```{r}
+hist(log(train_hd$SalePrice), 
+     breaks = 30,
+     main = "Histogram of Sale Price with log transformation",
+     xlab = "Sale Price",
+     col = "gray")
+```
+
+We can notice that the obtained plot is much better and the `log transformation` makes sense for the response.
+
+Let's use this transformed additive model as our baseline. There are still many paramaters that can be improved.
+
+### Predictor selection
+
+There are many predictors to play with. We can try to choose a smaller base of "relevant" predictors and then assess a reduction through backward selection process.
+
+One way of doing this is by selecting those numerical predictors that are highly correlated to the response. 
+
+### Practical questions derived from the dataset
+
+
 
 ## References
 
