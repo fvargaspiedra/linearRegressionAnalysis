@@ -32,16 +32,16 @@ read_dataset = function(datafile) {
   data$`Land Slope`[is.na(data$`Land Slope`)] = "None"
   
   data$`Lot Config`[is.na(data$`Lot Config`)] = "None"
-  data$`BsmtFin Type 2`[is.na(data$`BsmtFin Type 2`)] = "None"
-  data$`BsmtFin Type 1`[is.na(data$`BsmtFin Type 1`)] = "None" 
-  data$`Bsmt Cond`[is.na(data$`Bsmt Cond`)] = "None"
+  #data$`BsmtFin Type 2`[is.na(data$`BsmtFin Type 2`)] = "None"
+  #data$`BsmtFin Type 1`[is.na(data$`BsmtFin Type 1`)] = "None" 
+  #data$`Bsmt Cond`[is.na(data$`Bsmt Cond`)] = "None"
   data$`Electrical`[is.na(data$`Electrical`)] = "None"
   data$`Mas Vnr Type`[is.na(data$`Mas Vnr Type`)] = "None"
   data$`Misc Val`[is.na(data$`Misc Val`)] = 0
   data$`Misc Feature`[is.na(data$`Misc Feature`)] = "None"
   data$`Garage Finish`[is.na(data$`Garage Finish`)] = "None"
-  data$`Garage Qual`[is.na(data$`Garage Qual`)] = "None"
-  data$`Garage Cond`[is.na(data$`Garage Cond`)] = "None"
+  #data$`Garage Qual`[is.na(data$`Garage Qual`)] = "None"
+  #data$`Garage Cond`[is.na(data$`Garage Cond`)] = "None"
   data$`Garage Type`[is.na(data$`Garage Type`)] = "None"
   data$`Roof Matl`[is.na(data$`Roof Matl`)] = "None"
   
@@ -67,6 +67,10 @@ read_dataset = function(datafile) {
   ## This numeric columns might make more sense as factor variables.
   data$Mo.Sold = as.factor(data$Mo.Sold)
   data$Yr.Sold = as.factor(data$Yr.Sold)
+  
+  #data = data[,-which(colnames(data) %in% c("Total.Bsmt.SF","Gr.Liv.Area",
+  #                                          "Bldg.Type",
+  #                                          "BsmtFin.Type.1","Exterior.2nd"))]
   
   return(as_tibble(data))
 }

@@ -22,6 +22,7 @@ options(digits=4)
 library(lmtest)
 library(jtools)
 library(emmeans)
+library(car)
 
 source("load_dataset.r")
 source("transformations.r")
@@ -30,7 +31,11 @@ source("plots.r")
 ```
 
 
-## Interaction Analysis
+## Introduction
+
+For this study, we will perform some exploratory data analysis to explain how the effect of different predictors on the `Sale Price` of a home varies across different `Neighborhoods`. We will attempt to infer which Neighborhoods place the highest monetary value on Living Area and determine whether the `Neighborhood` is collinear with other predictors.
+
+## Methods
 
 Load the dataset and split it into training and testing data sets.
 ```{r message=FALSE, warning=FALSE}
@@ -45,9 +50,16 @@ test_data = splits$test
 
 I would like to know if the living area of a house is more valuable in some neighborhoods than others. We'll do an ANOVA for the interaction between these two predictors.
 ```{r}
-interaction = aov(SalePrice ~  Neighborhood * Gr.Liv.Area, data=housing_data)
-model = lm(SalePrice ~  Neighborhood * Gr.Liv.Area, data=housing_data)
-(summary = summary(interaction)[[1]])
+housing_data$base = ifelse(housing_data$BsmtFin.SF.1 > 0,"Yes","No") 
+table(housing_data$base)
+
+model = lm(SalePrice ~  Gr.Liv.Area*Neighborhood, data=housing_data)
+summary = anova(model)
+summary(model)
+
+
+#car::vif(lm(SalePrice ~  ., data=housing_data))
+#rownames(alias(lm(SalePrice ~  ., data=housing_data))$Complete)
 ```
 
 P-value of the interaction between Neighborhood and Living Area appears is very small (`r  summary[3,5]`), meaning that different Neighborhoods appear to place a higher value on living space.
@@ -67,37 +79,7 @@ We notice that the slops are different depending on the neighborhood. We'll do s
 ```
 
 
-## Finding orthogonal predictors
+## Analysis
 
-We'll first fit a simple additive model on the training data.
+## Discussion
 
-```{r Stepwise-Search}
-model_add = lm(SalePrice ~ . , data=training_data)
-sigma(model_add) ## Residual standard error
-summary(model_add)$adj.r.squared
-```
-
-We'll reduce the number of predictors by removing predictors that are colinear using stepwise search.
-
-```{r}
-n = nrow(housing_data)
-model = step(model_add, direction = "both", trace = 0, k = log(n))
-stepwise_search_formula = formula(model)
-```
-
-We'll train a model using the selected predictors on the training data only.
-```{r warning=FALSE}
-model_selected = lm(stepwise_search_formula, data=training_data)
-
-model_selected$xlevels[["Kitchen.Qual"]] <- union(model_selected$xlevels[["Kitchen.Qual"]],
-                                           levels(test_data$Kitchen.Qual))
-
-### Residual Standard Error on training data
-sigma(model_selected)
-
-num_predictors = length(coef(model_selected))-1
-
-### Residual Standard Error on test data
-sqrt(sum((test_data$SalePrice - predict(model_selected, newdata=test_data))^2) / (nrow(test_data)-num_predictors) )
-
-```

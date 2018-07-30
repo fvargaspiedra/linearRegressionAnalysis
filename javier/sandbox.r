@@ -1,6 +1,7 @@
 library(lmtest)
 library(faraway)
 library(MASS)
+library(emmeans)
 
 source("load_dataset.r")
 source("transformations.r")

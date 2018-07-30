@@ -125,8 +125,10 @@ $(document).ready(function () {
 
 <div id="TOC">
 <ul>
-<li><a href="#interaction-analysis">Interaction Analysis</a></li>
-<li><a href="#finding-orthogonal-predictors">Finding orthogonal predictors</a></li>
+<li><a href="#introduction">Introduction</a></li>
+<li><a href="#methods">Methods</a></li>
+<li><a href="#analysis">Analysis</a></li>
+<li><a href="#discussion">Discussion</a></li>
 </ul>
 </div>
 
@@ -136,12 +138,17 @@ $(document).ready(function () {
 library(lmtest)
 library(jtools)
 library(emmeans)
+library(car)
 
 source(&quot;load_dataset.r&quot;)
 source(&quot;transformations.r&quot;)
 source(&quot;plots.r&quot;)</code></pre>
-<div id="interaction-analysis" class="section level2">
-<h2>Interaction Analysis</h2>
+<div id="introduction" class="section level2">
+<h2>Introduction</h2>
+<p>For this study, we will perform some exploratory data analysis to explain how the effect of different predictors on the <code>Sale Price</code> of a home varies across different <code>Neighborhoods</code>. We will attempt to infer which Neighborhoods place the highest monetary value on Living Area and determine whether the <code>Neighborhood</code> is collinear with other predictors.</p>
+</div>
+<div id="methods" class="section level2">
+<h2>Methods</h2>
 <p>Load the dataset and split it into training and testing data sets.</p>
 <pre class="r"><code>housing_data = read_dataset(&quot;../data/AmesHousing.csv&quot;)
 
@@ -149,16 +156,84 @@ splits = splitDataset(housing_data)
 training_data = splits$train
 test_data = splits$test</code></pre>
 <p>I would like to know if the living area of a house is more valuable in some neighborhoods than others. We’ll do an ANOVA for the interaction between these two predictors.</p>
-<pre class="r"><code>interaction = aov(SalePrice ~  Neighborhood * Gr.Liv.Area, data=housing_data)
-model = lm(SalePrice ~  Neighborhood * Gr.Liv.Area, data=housing_data)
-(summary = summary(interaction)[[1]])</code></pre>
-<pre><code>##                            Df   Sum Sq  Mean Sq F value Pr(&gt;F)    
-## Neighborhood               25 7.17e+12 2.87e+11  277.04 &lt;2e-16 ***
-## Gr.Liv.Area                 1 1.98e+12 1.98e+12 1913.09 &lt;2e-16 ***
-## Neighborhood:Gr.Liv.Area   25 2.47e+11 9.87e+09    9.53 &lt;2e-16 ***
-## Residuals                2789 2.89e+12 1.04e+09                   
+<pre class="r"><code>housing_data$base = ifelse(housing_data$BsmtFin.SF.1 &gt; 0,&quot;Yes&quot;,&quot;No&quot;) 
+table(housing_data$base)</code></pre>
+<pre><code>## 
+##   No  Yes 
+##  918 1923</code></pre>
+<pre class="r"><code>model = lm(SalePrice ~  Gr.Liv.Area*Neighborhood, data=housing_data)
+summary = anova(model)
+summary(model)</code></pre>
+<pre><code>## 
+## Call:
+## lm(formula = SalePrice ~ Gr.Liv.Area * Neighborhood, data = housing_data)
+## 
+## Residuals:
+##     Min      1Q  Median      3Q     Max 
+## -123174  -17605    -355   14522  191646 
+## 
+## Coefficients:
+##                                 Estimate Std. Error t value Pr(&gt;|t|)   
+## (Intercept)                      13390.3    57330.0    0.23   0.8153   
+## Gr.Liv.Area                        130.5       40.6    3.21   0.0013 **
+## NeighborhoodBlueste             146521.7    94255.7    1.55   0.1202   
+## NeighborhoodBrDale               31001.2    73845.8    0.42   0.6747   
+## NeighborhoodBrkSide              13051.8    58384.4    0.22   0.8231   
+## NeighborhoodClearCr              89883.5    61930.2    1.45   0.1468   
+## NeighborhoodCollgCr              37964.2    57836.8    0.66   0.5116   
+## NeighborhoodCrawfor              40709.2    58968.1    0.69   0.4900   
+## NeighborhoodEdwards              23758.5    58053.4    0.41   0.6824   
+## NeighborhoodGilbert              55669.3    59044.1    0.94   0.3458   
+## NeighborhoodGreens               64359.1   102614.7    0.63   0.5306   
+## NeighborhoodIDOTRR               14946.2    58309.4    0.26   0.7977   
+## NeighborhoodMeadowV              42593.8    60059.4    0.71   0.4783   
+## NeighborhoodMitchel              75072.6    58372.2    1.29   0.1985   
+## NeighborhoodNAmes                62960.7    57603.0    1.09   0.2745   
+## NeighborhoodNoRidge             118627.9    66050.6    1.80   0.0726 . 
+## NeighborhoodNPkVill              96017.4    67107.8    1.43   0.1526   
+## NeighborhoodNridgHt              65065.4    58912.0    1.10   0.2695   
+## NeighborhoodNWAmes               61096.7    58439.1    1.05   0.2959   
+## NeighborhoodOldTown              42017.1    57691.0    0.73   0.4665   
+## NeighborhoodSawyer               80652.1    58055.7    1.39   0.1649   
+## NeighborhoodSawyerW              45869.7    58297.5    0.79   0.4315   
+## NeighborhoodSomerst              30597.9    58958.3    0.52   0.6038   
+## NeighborhoodStoneBr              55425.7    61017.5    0.91   0.3638   
+## NeighborhoodSWISU                66145.5    59595.0    1.11   0.2671   
+## NeighborhoodTimber               62374.6    60362.6    1.03   0.3015   
+## NeighborhoodVeenker             179209.4    62356.9    2.87   0.0041 **
+## Gr.Liv.Area:NeighborhoodBlueste   -144.5       75.7   -1.91   0.0564 . 
+## Gr.Liv.Area:NeighborhoodBrDale     -75.6       58.0   -1.30   0.1925   
+## Gr.Liv.Area:NeighborhoodBrkSide    -50.8       41.5   -1.23   0.2204   
+## Gr.Liv.Area:NeighborhoodClearCr    -70.7       42.7   -1.66   0.0980 . 
+## Gr.Liv.Area:NeighborhoodCollgCr    -30.6       40.9   -0.75   0.4540   
+## Gr.Liv.Area:NeighborhoodCrawfor    -41.6       41.3   -1.01   0.3142   
+## Gr.Liv.Area:NeighborhoodEdwards    -58.0       41.2   -1.41   0.1589   
+## Gr.Liv.Area:NeighborhoodGilbert    -55.4       41.5   -1.34   0.1814   
+## Gr.Liv.Area:NeighborhoodGreens     -30.4       83.4   -0.36   0.7155   
+## Gr.Liv.Area:NeighborhoodIDOTRR     -67.9       41.4   -1.64   0.1015   
+## Gr.Liv.Area:NeighborhoodMeadowV    -93.2       43.6   -2.14   0.0328 * 
+## Gr.Liv.Area:NeighborhoodMitchel    -74.9       41.3   -1.81   0.0701 . 
+## Gr.Liv.Area:NeighborhoodNAmes      -77.3       40.8   -1.90   0.0581 . 
+## Gr.Liv.Area:NeighborhoodNoRidge    -59.7       42.9   -1.39   0.1640   
+## Gr.Liv.Area:NeighborhoodNPkVill   -105.3       49.0   -2.15   0.0318 * 
+## Gr.Liv.Area:NeighborhoodNridgHt    -15.6       41.2   -0.38   0.7058   
+## Gr.Liv.Area:NeighborhoodNWAmes     -63.0       41.1   -1.53   0.1254   
+## Gr.Liv.Area:NeighborhoodOldTown    -83.6       40.8   -2.05   0.0405 * 
+## Gr.Liv.Area:NeighborhoodSawyer     -94.3       41.2   -2.29   0.0224 * 
+## Gr.Liv.Area:NeighborhoodSawyerW    -52.7       41.1   -1.28   0.1997   
+## Gr.Liv.Area:NeighborhoodSomerst    -16.0       41.5   -0.39   0.6991   
+## Gr.Liv.Area:NeighborhoodStoneBr    -14.1       42.2   -0.33   0.7384   
+## Gr.Liv.Area:NeighborhoodSWISU      -96.8       41.8   -2.32   0.0206 * 
+## Gr.Liv.Area:NeighborhoodTimber     -33.2       42.0   -0.79   0.4294   
+## Gr.Liv.Area:NeighborhoodVeenker   -103.1       42.6   -2.42   0.0156 * 
 ## ---
-## Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1</code></pre>
+## Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
+## 
+## Residual standard error: 32200 on 2789 degrees of freedom
+## Multiple R-squared:  0.765,  Adjusted R-squared:  0.761 
+## F-statistic:  178 on 51 and 2789 DF,  p-value: &lt;2e-16</code></pre>
+<pre class="r"><code>#car::vif(lm(SalePrice ~  ., data=housing_data))
+#rownames(alias(lm(SalePrice ~  ., data=housing_data))$Complete)</code></pre>
 <p>P-value of the interaction between Neighborhood and Living Area appears is very small (5.576810^{-35}), meaning that different Neighborhoods appear to place a higher value on living space.</p>
 <p>We’ll plot the slopes of the 6 neighborhoods with the largest amount of observations.</p>
 <pre class="r"><code>ordered_neigh = order(-table(housing_data$Neighborhood))
@@ -274,32 +349,11 @@ interact_plot(model, pred=Gr.Liv.Area, modx=Neighborhood, color.class=&quot;Qual
 ##   Est.  S.E. 2.5% 97.5% t val.    p
 ##  27.37 12.97 1.93 52.81   2.11 0.03</code></pre>
 </div>
-<div id="finding-orthogonal-predictors" class="section level2">
-<h2>Finding orthogonal predictors</h2>
-<p>We’ll first fit a simple additive model on the training data.</p>
-<pre class="r"><code>model_add = lm(SalePrice ~ . , data=training_data)
-sigma(model_add) ## Residual standard error</code></pre>
-<pre><code>## [1] 17418</code></pre>
-<pre class="r"><code>summary(model_add)$adj.r.squared</code></pre>
-<pre><code>## [1] 0.9297</code></pre>
-<p>We’ll reduce the number of predictors by removing predictors that are colinear using stepwise search.</p>
-<pre class="r"><code>n = nrow(housing_data)
-model = step(model_add, direction = &quot;both&quot;, trace = 0, k = log(n))
-stepwise_search_formula = formula(model)</code></pre>
-<p>We’ll train a model using the selected predictors on the training data only.</p>
-<pre class="r"><code>model_selected = lm(stepwise_search_formula, data=training_data)
-
-model_selected$xlevels[[&quot;Kitchen.Qual&quot;]] &lt;- union(model_selected$xlevels[[&quot;Kitchen.Qual&quot;]],
-                                           levels(test_data$Kitchen.Qual))
-
-### Residual Standard Error on training data
-sigma(model_selected)</code></pre>
-<pre><code>## [1] 18576</code></pre>
-<pre class="r"><code>num_predictors = length(coef(model_selected))-1
-
-### Residual Standard Error on test data
-sqrt(sum((test_data$SalePrice - predict(model_selected, newdata=test_data))^2) / (nrow(test_data)-num_predictors) )</code></pre>
-<pre><code>## [1] 14849642</code></pre>
+<div id="analysis" class="section level2">
+<h2>Analysis</h2>
+</div>
+<div id="discussion" class="section level2">
+<h2>Discussion</h2>
 </div>
 
 
