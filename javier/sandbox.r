@@ -146,5 +146,3 @@ qplot(y = SalePrice, x = GrLivArea, col= Neighborhood, data=housing_data)
 par(mfrow = c(1, 2))
 with(warpbreaks, interaction.plot(wool, tension, breaks, lwd = 2, col = 2:4))
 with(warpbreaks, interaction.plot(tension, wool, breaks, lwd = 2, col = 2:3))
-
-

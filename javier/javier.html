@@ -133,8 +133,7 @@ $(document).ready(function () {
 </div>
 
 <pre class="r"><code>#options(repos=c(CRAN=&quot;&lt;something sensible near you&gt;&quot;))
-#install.packages(&quot;jtools&quot;)
-#install.packages(&quot;emmeans&quot;)
+#install.packages(c(&quot;jtools&quot;,&quot;emmeans&quot;))
 library(lmtest)
 library(jtools)
 library(emmeans)
@@ -149,12 +148,25 @@ source(&quot;plots.r&quot;)</code></pre>
 </div>
 <div id="methods" class="section level2">
 <h2>Methods</h2>
-<p>Load the dataset and split it into training and testing data sets.</p>
-<pre class="r"><code>housing_data = read_dataset(&quot;../data/AmesHousing.csv&quot;)
+<p>We will begin by loading the housing data stored in <code>AmesHousing.csv</code>. We will also define a convenience function <code>splitDataset</code> that will randomly split the data into two data sets: <em>“train”</em> and <em>“test”</em>.</p>
+<pre class="r"><code>splitDataset = function(data) {
+  training = createDataPartition(data$SalePrice, times=1, p=0.80, list=FALSE)
+  return(list(train=data[training,], test=data[-training,]))
+}
+
+housing_data = read_dataset(&quot;../data/AmesHousing.csv&quot;)
 
 splits = splitDataset(housing_data)
 training_data = splits$train
 test_data = splits$test</code></pre>
+<p>Now we can begin our exploratory data analysis. To examine the relationship between <code>Neighborhood</code> and <code>SalePrice</code>, we’ll perform a simple one-way ANOVA to determine whether it has any effect on <code>SalePrice</code> at all.</p>
+<pre class="r"><code>neighborhood_oneway_anova = aov(SalePrice ~ Neighborhood, data=housing_data)
+summary(neighborhood_oneway_anova)</code></pre>
+<pre><code>##                Df     Sum Sq    Mean Sq F value    Pr(&gt;F)    
+## Neighborhood   25 7.1728e+12 2.8691e+11  157.85 &lt; 2.2e-16 ***
+## Residuals    2815 5.1165e+12 1.8176e+09                      
+## ---
+## Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1</code></pre>
 <p>I would like to know if the living area of a house is more valuable in some neighborhoods than others. We’ll do an ANOVA for the interaction between these two predictors.</p>
 <pre class="r"><code>housing_data$base = ifelse(housing_data$BsmtFin.SF.1 &gt; 0,&quot;Yes&quot;,&quot;No&quot;) 
 table(housing_data$base)</code></pre>
@@ -169,72 +181,72 @@ summary(model)</code></pre>
 ## lm(formula = SalePrice ~ Gr.Liv.Area * Neighborhood, data = housing_data)
 ## 
 ## Residuals:
-##     Min      1Q  Median      3Q     Max 
-## -123174  -17605    -355   14522  191646 
+##       Min        1Q    Median        3Q       Max 
+## -123173.6  -17604.6    -355.1   14521.6  191645.6 
 ## 
 ## Coefficients:
-##                                 Estimate Std. Error t value Pr(&gt;|t|)   
-## (Intercept)                      13390.3    57330.0    0.23   0.8153   
-## Gr.Liv.Area                        130.5       40.6    3.21   0.0013 **
-## NeighborhoodBlueste             146521.7    94255.7    1.55   0.1202   
-## NeighborhoodBrDale               31001.2    73845.8    0.42   0.6747   
-## NeighborhoodBrkSide              13051.8    58384.4    0.22   0.8231   
-## NeighborhoodClearCr              89883.5    61930.2    1.45   0.1468   
-## NeighborhoodCollgCr              37964.2    57836.8    0.66   0.5116   
-## NeighborhoodCrawfor              40709.2    58968.1    0.69   0.4900   
-## NeighborhoodEdwards              23758.5    58053.4    0.41   0.6824   
-## NeighborhoodGilbert              55669.3    59044.1    0.94   0.3458   
-## NeighborhoodGreens               64359.1   102614.7    0.63   0.5306   
-## NeighborhoodIDOTRR               14946.2    58309.4    0.26   0.7977   
-## NeighborhoodMeadowV              42593.8    60059.4    0.71   0.4783   
-## NeighborhoodMitchel              75072.6    58372.2    1.29   0.1985   
-## NeighborhoodNAmes                62960.7    57603.0    1.09   0.2745   
-## NeighborhoodNoRidge             118627.9    66050.6    1.80   0.0726 . 
-## NeighborhoodNPkVill              96017.4    67107.8    1.43   0.1526   
-## NeighborhoodNridgHt              65065.4    58912.0    1.10   0.2695   
-## NeighborhoodNWAmes               61096.7    58439.1    1.05   0.2959   
-## NeighborhoodOldTown              42017.1    57691.0    0.73   0.4665   
-## NeighborhoodSawyer               80652.1    58055.7    1.39   0.1649   
-## NeighborhoodSawyerW              45869.7    58297.5    0.79   0.4315   
-## NeighborhoodSomerst              30597.9    58958.3    0.52   0.6038   
-## NeighborhoodStoneBr              55425.7    61017.5    0.91   0.3638   
-## NeighborhoodSWISU                66145.5    59595.0    1.11   0.2671   
-## NeighborhoodTimber               62374.6    60362.6    1.03   0.3015   
-## NeighborhoodVeenker             179209.4    62356.9    2.87   0.0041 **
-## Gr.Liv.Area:NeighborhoodBlueste   -144.5       75.7   -1.91   0.0564 . 
-## Gr.Liv.Area:NeighborhoodBrDale     -75.6       58.0   -1.30   0.1925   
-## Gr.Liv.Area:NeighborhoodBrkSide    -50.8       41.5   -1.23   0.2204   
-## Gr.Liv.Area:NeighborhoodClearCr    -70.7       42.7   -1.66   0.0980 . 
-## Gr.Liv.Area:NeighborhoodCollgCr    -30.6       40.9   -0.75   0.4540   
-## Gr.Liv.Area:NeighborhoodCrawfor    -41.6       41.3   -1.01   0.3142   
-## Gr.Liv.Area:NeighborhoodEdwards    -58.0       41.2   -1.41   0.1589   
-## Gr.Liv.Area:NeighborhoodGilbert    -55.4       41.5   -1.34   0.1814   
-## Gr.Liv.Area:NeighborhoodGreens     -30.4       83.4   -0.36   0.7155   
-## Gr.Liv.Area:NeighborhoodIDOTRR     -67.9       41.4   -1.64   0.1015   
-## Gr.Liv.Area:NeighborhoodMeadowV    -93.2       43.6   -2.14   0.0328 * 
-## Gr.Liv.Area:NeighborhoodMitchel    -74.9       41.3   -1.81   0.0701 . 
-## Gr.Liv.Area:NeighborhoodNAmes      -77.3       40.8   -1.90   0.0581 . 
-## Gr.Liv.Area:NeighborhoodNoRidge    -59.7       42.9   -1.39   0.1640   
-## Gr.Liv.Area:NeighborhoodNPkVill   -105.3       49.0   -2.15   0.0318 * 
-## Gr.Liv.Area:NeighborhoodNridgHt    -15.6       41.2   -0.38   0.7058   
-## Gr.Liv.Area:NeighborhoodNWAmes     -63.0       41.1   -1.53   0.1254   
-## Gr.Liv.Area:NeighborhoodOldTown    -83.6       40.8   -2.05   0.0405 * 
-## Gr.Liv.Area:NeighborhoodSawyer     -94.3       41.2   -2.29   0.0224 * 
-## Gr.Liv.Area:NeighborhoodSawyerW    -52.7       41.1   -1.28   0.1997   
-## Gr.Liv.Area:NeighborhoodSomerst    -16.0       41.5   -0.39   0.6991   
-## Gr.Liv.Area:NeighborhoodStoneBr    -14.1       42.2   -0.33   0.7384   
-## Gr.Liv.Area:NeighborhoodSWISU      -96.8       41.8   -2.32   0.0206 * 
-## Gr.Liv.Area:NeighborhoodTimber     -33.2       42.0   -0.79   0.4294   
-## Gr.Liv.Area:NeighborhoodVeenker   -103.1       42.6   -2.42   0.0156 * 
+##                                   Estimate Std. Error t value Pr(&gt;|t|)   
+## (Intercept)                      13390.291  57329.998  0.2336 0.815340   
+## Gr.Liv.Area                        130.452     40.577  3.2149 0.001320 **
+## NeighborhoodBlueste             146521.672  94255.675  1.5545 0.120176   
+## NeighborhoodBrDale               31001.231  73845.811  0.4198 0.674656   
+## NeighborhoodBrkSide              13051.841  58384.433  0.2236 0.823124   
+## NeighborhoodClearCr              89883.527  61930.224  1.4514 0.146790   
+## NeighborhoodCollgCr              37964.161  57836.823  0.6564 0.511620   
+## NeighborhoodCrawfor              40709.207  58968.138  0.6904 0.490026   
+## NeighborhoodEdwards              23758.510  58053.375  0.4093 0.682386   
+## NeighborhoodGilbert              55669.260  59044.051  0.9428 0.345843   
+## NeighborhoodGreens               64359.053 102614.744  0.6272 0.530585   
+## NeighborhoodIDOTRR               14946.230  58309.351  0.2563 0.797718   
+## NeighborhoodMeadowV              42593.791  60059.425  0.7092 0.478263   
+## NeighborhoodMitchel              75072.550  58372.237  1.2861 0.198515   
+## NeighborhoodNAmes                62960.676  57602.968  1.0930 0.274483   
+## NeighborhoodNoRidge             118627.916  66050.552  1.7960 0.072600 . 
+## NeighborhoodNPkVill              96017.443  67107.816  1.4308 0.152601   
+## NeighborhoodNridgHt              65065.365  58911.994  1.1045 0.269493   
+## NeighborhoodNWAmes               61096.693  58439.133  1.0455 0.295894   
+## NeighborhoodOldTown              42017.078  57690.956  0.7283 0.466483   
+## NeighborhoodSawyer               80652.116  58055.694  1.3892 0.164877   
+## NeighborhoodSawyerW              45869.657  58297.472  0.7868 0.431454   
+## NeighborhoodSomerst              30597.866  58958.328  0.5190 0.603820   
+## NeighborhoodStoneBr              55425.679  61017.458  0.9084 0.363768   
+## NeighborhoodSWISU                66145.520  59595.039  1.1099 0.267131   
+## NeighborhoodTimber               62374.650  60362.582  1.0333 0.301538   
+## NeighborhoodVeenker             179209.443  62356.867  2.8739 0.004085 **
+## Gr.Liv.Area:NeighborhoodBlueste   -144.527     75.706 -1.9090 0.056359 . 
+## Gr.Liv.Area:NeighborhoodBrDale     -75.561     57.971 -1.3034 0.192538   
+## Gr.Liv.Area:NeighborhoodBrkSide    -50.840     41.476 -1.2258 0.220387   
+## Gr.Liv.Area:NeighborhoodClearCr    -70.688     42.708 -1.6551 0.098011 . 
+## Gr.Liv.Area:NeighborhoodCollgCr    -30.613     40.879 -0.7489 0.454004   
+## Gr.Liv.Area:NeighborhoodCrawfor    -41.618     41.346 -1.0066 0.314235   
+## Gr.Liv.Area:NeighborhoodEdwards    -58.039     41.186 -1.4092 0.158888   
+## Gr.Liv.Area:NeighborhoodGilbert    -55.440     41.473 -1.3368 0.181409   
+## Gr.Liv.Area:NeighborhoodGreens     -30.403     83.416 -0.3645 0.715531   
+## Gr.Liv.Area:NeighborhoodIDOTRR     -67.879     41.434 -1.6382 0.101487   
+## Gr.Liv.Area:NeighborhoodMeadowV    -93.167     43.629 -2.1354 0.032813 * 
+## Gr.Liv.Area:NeighborhoodMitchel    -74.904     41.344 -1.8117 0.070139 . 
+## Gr.Liv.Area:NeighborhoodNAmes      -77.341     40.794 -1.8959 0.058075 . 
+## Gr.Liv.Area:NeighborhoodNoRidge    -59.735     42.909 -1.3922 0.163987   
+## Gr.Liv.Area:NeighborhoodNPkVill   -105.291     49.026 -2.1477 0.031827 * 
+## Gr.Liv.Area:NeighborhoodNridgHt    -15.566     41.226 -0.3776 0.705763   
+## Gr.Liv.Area:NeighborhoodNWAmes     -62.995     41.094 -1.5329 0.125406   
+## Gr.Liv.Area:NeighborhoodOldTown    -83.626     40.805 -2.0494 0.040515 * 
+## Gr.Liv.Area:NeighborhoodSawyer     -94.270     41.247 -2.2855 0.022356 * 
+## Gr.Liv.Area:NeighborhoodSawyerW    -52.694     41.078 -1.2828 0.199672   
+## Gr.Liv.Area:NeighborhoodSomerst    -16.031     41.472 -0.3866 0.699116   
+## Gr.Liv.Area:NeighborhoodStoneBr    -14.097     42.206 -0.3340 0.738392   
+## Gr.Liv.Area:NeighborhoodSWISU      -96.767     41.776 -2.3164 0.020611 * 
+## Gr.Liv.Area:NeighborhoodTimber     -33.193     42.000 -0.7903 0.429413   
+## Gr.Liv.Area:NeighborhoodVeenker   -103.083     42.601 -2.4198 0.015594 * 
 ## ---
 ## Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
 ## 
-## Residual standard error: 32200 on 2789 degrees of freedom
-## Multiple R-squared:  0.765,  Adjusted R-squared:  0.761 
-## F-statistic:  178 on 51 and 2789 DF,  p-value: &lt;2e-16</code></pre>
+## Residual standard error: 32181 on 2789 degrees of freedom
+## Multiple R-squared:  0.76496,    Adjusted R-squared:  0.76067 
+## F-statistic: 177.99 on 51 and 2789 DF,  p-value: &lt; 2.22e-16</code></pre>
 <pre class="r"><code>#car::vif(lm(SalePrice ~  ., data=housing_data))
 #rownames(alias(lm(SalePrice ~  ., data=housing_data))$Complete)</code></pre>
-<p>P-value of the interaction between Neighborhood and Living Area appears is very small (5.576810^{-35}), meaning that different Neighborhoods appear to place a higher value on living space.</p>
+<p>P-value of the interaction between Neighborhood and Living Area appears is very small (5.5767676710^{-35}), meaning that different Neighborhoods appear to place a higher value on living space.</p>
 <p>We’ll plot the slopes of the 6 neighborhoods with the largest amount of observations.</p>
 <pre class="r"><code>ordered_neigh = order(-table(housing_data$Neighborhood))
 interact_plot(model, pred=Gr.Liv.Area, modx=Neighborhood, color.class=&quot;Qual1&quot;,

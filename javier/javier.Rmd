@@ -11,14 +11,13 @@ urlcolor: cyan
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
-options(digits=4)
+options(digits=8)
 
 ```
 
 ```{r message=FALSE, warning=FALSE}
 #options(repos=c(CRAN="<something sensible near you>"))
-#install.packages("jtools")
-#install.packages("emmeans")
+#install.packages(c("jtools","emmeans"))
 library(lmtest)
 library(jtools)
 library(emmeans)
@@ -37,14 +36,30 @@ For this study, we will perform some exploratory data analysis to explain how th
 
 ## Methods
 
-Load the dataset and split it into training and testing data sets.
+We will begin by loading the housing data stored in `AmesHousing.csv`. We will also define a convenience function `splitDataset` that will randomly split the data into two data sets: *"train"* and *"test"*.
 ```{r message=FALSE, warning=FALSE}
+
+splitDataset = function(data) {
+  training = createDataPartition(data$SalePrice, times=1, p=0.80, list=FALSE)
+  return(list(train=data[training,], test=data[-training,]))
+}
+
 housing_data = read_dataset("../data/AmesHousing.csv")
 
 splits = splitDataset(housing_data)
 training_data = splits$train
 test_data = splits$test
 ```
+
+Now we can begin our exploratory data analysis. To examine the relationship between `Neighborhood` and `SalePrice`, we'll perform a simple one-way ANOVA to determine whether it has any effect on `SalePrice` at all.
+
+```{r}
+neighborhood_oneway_anova = aov(SalePrice ~ Neighborhood, data=housing_data)
+summary(neighborhood_oneway_anova)
+```
+
+
+
 
 
 
