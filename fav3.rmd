@@ -23,7 +23,7 @@ Prediction of House Prices in Ames, Iowa Using Regression Analysis Techniques
 
 The main goal of this project is to develop a model to predict the sale price of a house using a dataset gathered on Ames, Iowa related to houses sold between 2006 and 2010. The model not only should be good at predicting the price, but also avoid using all the features provided in order to reduce the complexity of explaining it. In other words, we are aiming to get a model with a balance between prediction and explanation.
 
-There are also practical questions that will be answered which can help a seller or buyer to understand specific characteristics that are important when determining the price of a house.
+There are also practical questions that will be answered which can help a seller or buyer to understand specific characteristics that are important when determining the price of a house. We decided to also work on this special practical questions to explore other techniques seen in the course and make our analysis even more interesting (for us and for the reader).
 
 The dataset originally contains 2930 observations with 81 features (23 nominal/categorical, 23 ordinal, 14 discrete, and 21 continuous).
 
@@ -413,13 +413,54 @@ loocv_rmse_final_mod = sqrt(mean((resid(model_add_mix)[-which(hatvalues(model_ad
 loocv_rmse_final_mod
 ```
 
-This is a much better value than our previous model, which is super good for prediction purposes. We are now only using 20 predictors out of 74. 12 of those predictors are categorical and 8 numerical which is also good for explanation purposes. `model_add_mix` is our final choice. We'll assess it against the test set in the `results` section. We'll also discuss the chosen model in general.
+This is a much better value than our previous model, which is super good for prediction purposes. The `model_add_mix` is our final choice. We'll assess it against the test set in the `results` section. We'll also discuss the chosen model in general.
 
 ### Practical questions derived from the dataset
 
 ## Results
 
+### Predictive model chosen
 
+The chosen model to predict Sale Price for the given dataset was stored in `model_add_mix`. It uses 20 predictors out of 80 originally available, which is aligned to our initial commitment towards not only getting a good model for prediction, but also a balanced model between prediction and explanation. 12 of those predictors are categorical and 8 numerical.
+
+To assess the final model, we can first focus on the prediction capabilities and then around explanatory capabilities.
+
+From a prediction perspective we can first plot the fitted values versus the actual values to get a visual look of how the chosen model performs on the training set:
+
+```{r}
+plot(train_hd$SalePrice, exp(fitted(model_add_mix)),
+     xlab = "Actual price (dollars)",
+     ylab = "Predicted price (dollars)",
+     main = "Predicted vs actual price in dollars for training set",
+     col = "orange")
+abline(0, 1, lwd = 2, col = "dodgerblue")
+```
+
+ADD COMMENTS HERE (variance for high prices seem to increase. Model looks really good below 400 000 dollars)
+
+Let's do the same but this time for the test set. Let's store the predicted values in a variable to be used on calculating more results.
+
+```{r}
+# We are removing a conflicting observation for "Kitchen Qual" that is only present on the test set
+# This is because there is only one observation with that value
+test_hd = test_hd[-which(test_hd$`Kitchen Qual` == "Po"),]
+
+# Predict values
+predicted = exp(predict(model_add_mix, test_hd))
+```
+
+We can now plot for the test set. These are unbiased results that can tell us a lot about the chosen model:
+
+```{r}
+plot(test_hd$SalePrice, predicted,
+     xlab = "Actual price (dollars)",
+     ylab = "Predicted price (dollars)",
+     main = "Predicted vs actual price in dollars for test set",
+     col = "orange")
+abline(0, 1, lwd = 2, col = "dodgerblue")
+```
+
+### Practical questions derived from the dataset
 
 ## References
 
