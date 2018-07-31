@@ -98,7 +98,6 @@ As you can see `r length(hasNA)` variables contain `NA` values. Some of those va
 
 ```{r}
 # Keep only those variables that has less than 400 NAs 
-#housing_data = housing_data[ , names(hasNA[hasNA < 400])]
 housing_data = subset(housing_data, select = colSums(is.na(housing_data)) < 400)
 ```
 
@@ -235,7 +234,7 @@ Let's run the overview function to assess this baseline model:
 get_overview(model_add)
 ```
 
-From the results above you can note that there are troubles on every resulting parameter, except the adjusted $R^2$. LOOCV RMSE is `inf`, both assumptions are violated (p-values are very low), and the number of parameters used is huge (because of the categorical variables, we end up having more betas than the number of predictors available). The Fitted vs Residuals plot also seems to violate both, the 0 mean at any fitted value and the constant variance at any fitted value (no linearity and no constant variance).
+From the results above you can note that there are troubles on every resulting parameter, except the adjusted $R^2$. LOOCV RMSE is `inf` (because there are hat values equal to 1), both assumptions are violated (p-values are very low), and the number of parameters used is huge (because of the categorical variables, we end up having more betas than the number of predictors available). The Fitted vs Residuals plot also seems to violate both, the 0 mean at any fitted value and the constant variance at any fitted value (no linearity and no constant variance).
 
 Based on the normal Q-Q plot is evident that there is a huge deviation at the edges of the plot. We can apply a log transformation on the response and check whether this minimizes the effect:
 
@@ -298,7 +297,7 @@ Let's use this transformed additive model as our baseline. There are still many 
 
 ### Selection methods 
 
-There are many predictors to play with. We can try to choose a smaller base of "relevant" predictors and then assess a reduction through backward selection process.
+There are many predictors to play with. We can try to choose a smaller base of "relevant" numerical predictors and then assess the addition of categorical variables through a `forward` process.
 
 One way of doing this is by selecting those numerical predictors that are highly correlated to the response.
 
@@ -354,9 +353,9 @@ We can apply the `get_overview` function to evaluate assumptions as well:
 get_overview(model_add_num)
 ```
 
-Everything looks similar to the additive model using all the predictors. This time the LOOCV RMSE is not `inf` which is also a good signal.
+Everything looks similar to the additive model using all the predictors. This time the LOOCV RMSE is not `inf` which is also a good signal (no hat values of 1).
 
-Let's now check whether transforming any of these predictors make sense. A visual inspection of `pairs` plot might suggest possible transformations.
+Let's now check whether transforming any of these predictors makes sense. A visual inspection of `pairs` plot might suggest possible transformations.
 
 ```{r}
 pairs(train_hd[, names(sale_price_cor)])
@@ -369,7 +368,7 @@ model_add_num_log = lm(log(SalePrice) ~ `Overall Qual` + `Year Remod/Add` + `Mas
 get_overview(model_add_num_log)
 ```
 
-After the transformation all the parameters improved.
+After the transformation the assumption parameters improved and the rest remain almost the same. We can keep these changes.
 
 Let's now try to simplify the model using a backward selection procedure and AIC.
 
@@ -386,17 +385,39 @@ p_val = anova(model_add_num_log_back, model_add_num_log)$"Pr(>F)"[2]
 p_val
 ```
 
-We failed to reject the null hypothesis for any regular significance level, which means that the simplified model can be used and the number of rooms above ground was not significant. We now have only 9 numerical variables.
+We failed to reject the null hypothesis for any rational significance level, which means that the simplified model can be used and the number of rooms above ground were not significant. We now have only 9 numerical variables.
 
-Let's see whether this model can be improved by adding categorical variables. This can be done using a forward selection procedure:
+Let's see whether this model can be improved by adding categorical variables. This can be done using a forward selection procedure and BIC to get the smaller possible model:
 
 ```{r}
-# Instead of enumerating all the values in the scope parameter we can use the formula function
-scope = formula(lm(SalePrice ~ ., data = train_hd))
-model_add_mix = step(model_add_num_log_back, direction = "forward", scope = SalePrice ~ `Overall Qual` + `Year Remod/Add` + `Mas Vnr Area` + log(`Total Bsmt SF`) + log(`Gr Liv Area`) + `Full Bath` + `Fireplaces` + `Garage Cars` + Street + `MS SubClass` + `MS Zoning` + `Lot Shape` + `Land Contour` + Utilities + `Lot Config` + `Land Slope` + Neighborhood + `Condition 1` + `Condition 2` + `Bldg Type` + `House Style` + `Roof Style` + `Roof Matl` + `Exterior 1st` + `Exterior 2nd` + `Mas Vnr Type` + `Exter Qual` + `Exter Cond` + Foundation + `Bsmt Qual` + `Bsmt Cond` + `Bsmt Exposure` + `BsmtFin Type 1` + `BsmtFin Type 2` + Heating + `Heating QC` + `Central Air` + Electrical + `Kitchen Qual` + Functional + `Garage Type` + `Garage Finish` + `Garage Qual` + `Garage Cond` + `Paved Drive` + `Sale Type` + `Sale Condition`, trace = 0)
+# The scope includes all the filtered numerical variables plus all the available categorical variables
+model_add_mix = step(model_add_num_log_back, direction = "forward", scope = SalePrice ~ `Overall Qual` + `Year Remod/Add` + `Mas Vnr Area` + log(`Total Bsmt SF`) + log(`Gr Liv Area`) + `Full Bath` + `Fireplaces` + `Garage Cars` + Street + `MS SubClass` + `MS Zoning` + `Lot Shape` + `Land Contour` + Utilities + `Lot Config` + `Land Slope` + Neighborhood + `Condition 1` + `Condition 2` + `Bldg Type` + `House Style` + `Roof Style` + `Roof Matl` + `Exterior 1st` + `Exterior 2nd` + `Mas Vnr Type` + `Exter Qual` + `Exter Cond` + Foundation + `Bsmt Qual` + `Bsmt Cond` + `Bsmt Exposure` + `BsmtFin Type 1` + `BsmtFin Type 2` + Heating + `Heating QC` + `Central Air` + Electrical + `Kitchen Qual` + Functional + `Garage Type` + `Garage Finish` + `Garage Qual` + `Garage Cond` + `Paved Drive` + `Sale Type` + `Sale Condition`, k = log(length(resid(model_add_num_log_back))), trace = 0)
 ```
 
+We can now run our diagnostics for the obtained model:
+
+```{r}
+get_overview(model_add_mix)
+```
+
+The assumptions plots remain the same. There is a noticeable improvement on adjusted $R^2$ and our LOOCV RMSE is `inf` again. This is due to some hat values being 1. Let's explore how many we have:
+
+```{r}
+sum(hatvalues(model_add_mix) == 1)
+```
+
+Since the number of conflicting hat_values is so low we can simply ignore them and calculate LOOCV RMSE manually:
+
+```{r}
+loocv_rmse_final_mod = sqrt(mean((resid(model_add_mix)[-which(hatvalues(model_add_mix) == 1)] / (1 - hatvalues(model_add_mix)[-which(hatvalues(model_add_mix) == 1)])) ^ 2))
+loocv_rmse_final_mod
+```
+
+This is a much better value than our previous model, which is super good for prediction purposes. We are now only using 20 predictors out of 74. 12 of those predictors are categorical and 8 numerical which is also good for explanation purposes. `model_add_mix` is our final choice. We'll assess it against the test set in the `results` section. We'll also discuss the chosen model in general.
+
 ### Practical questions derived from the dataset
+
+## Results
 
 
 
