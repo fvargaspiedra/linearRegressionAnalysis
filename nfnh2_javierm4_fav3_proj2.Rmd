@@ -365,8 +365,8 @@ Everything looks similar to the additive model using all the predictors. This ti
 
 Let's now check whether transforming any of these predictors makes sense. A visual inspection of `pairs` plot might suggest possible transformations.
 
-```{r}
-pairs(train_hd[, names(sale_price_cor)])
+```{r fig.height=8, fig.width=10}
+pairs(train_hd[, names(sale_price_cor)], pch=20, cex=.5)
 ```
 
 Based on this output, it seems that trying a `log` transformation on `Gr Liv Area` and `Total Bsmt SF` can make sense to soften the effect ot extreme values:
@@ -407,7 +407,7 @@ model_add_mix = step(model_add_num_log_back, direction = "forward", scope = Sale
 
 We can now run our diagnostics for the obtained model:
 
-```{r}
+```{r fig.height=5, fig.width=10}
 get_overview(model_add_mix)
 ```
 
@@ -490,7 +490,7 @@ To assess the final model, we can first focus on the prediction capabilities and
 
 From a prediction perspective we can first plot the fitted values versus the actual values to get a visual look of how the chosen model performs on the training set:
 
-```{r}
+```{r fig.height=5, fig.width=10}
 plot(train_hd$SalePrice, exp(fitted(model_add_mix)),
      xlab = "Actual price (dollars)",
      ylab = "Predicted price (dollars)",
@@ -514,7 +514,7 @@ predicted = exp(predict(model_add_mix, test_hd))
 
 We can now plot for the test set. These are unbiased results that can tell us a lot about the chosen model:
 
-```{r}
+```{r fig.height=5, fig.width=10}
 plot(test_hd$SalePrice, predicted,
      xlab = "Actual price (dollars)",
      ylab = "Predicted price (dollars)",
@@ -574,7 +574,8 @@ As you can see both assumption tests (Shapiro and Breusch) are returning really 
 
 From out first ANOVA of `Neighborhood` and `SalePrice`, it can easily be seen that the neighborhood had a significant effect on the price. We can also see this graphically using a box-plot.
 
-```{r fig.height=5, fig.width=10}
+
+```{r fig.height=8, fig.width=10}
 neigh_oneway_anova_summary
 boxplot(SalePrice ~ Neighborhood, data = housing_data,las=2, col=2:8, pch=20, cex=.7,
         main="Sale Prices by Neighborhood",
@@ -640,7 +641,7 @@ This section will be focused on analyze the usefulness of the chosen model based
 
 ### Exploratory question: relationship between Neighborhood, Sale Price and Other Predictors
 
-Having observed how both `Neighborhood` and `Gr.Liv.Area` interact with each other and influence `SalePrice`, it is important to highlight that it **does not imply a casual relationship** between them. This becomes more evident when we examine the partial correlation coefficient of `Gr.Liv.Area` and `SalePrice` with the effect of all other 78 predictors removed. We observe that its magnitude is less than 0.01.
+Having observed how both `Neighborhood` and `Gr.Liv.Area` interact with each other and influence `SalePrice`, it is important to highlight that it **does not imply a casual relationship** between them. This becomes more evident when we examine the partial correlation coefficient of `Gr.Liv.Area` and `SalePrice` with the effect of all other 78 predictors removed. We note that its magnitude is less than 0.01.
 
 ```{r}
 without_livarea       = lm(SalePrice ~ . -`Gr Liv Area` , data=housing_data)
