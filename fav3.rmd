@@ -423,6 +423,14 @@ This is a much better value than our previous model, which is super good for pre
 
 The chosen model to predict Sale Price for the given dataset was stored in `model_add_mix`. It uses 20 predictors out of 80 originally available, which is aligned to our initial commitment towards not only getting a good model for prediction, but also a balanced model between prediction and explanation. 12 of those predictors are categorical and 8 numerical.
 
+Below you can see the formula of the chosen model, which includes all the predictors and transformations used:
+
+```{r}
+model_add_mix$call
+```
+
+Since some of the predictors are categorical, then the number of coefficients in the model is bigger than the number of predictors used (due to the use of dummy variables). The model has in total `r length(model_add_mix$coefficients)` coefficients. 
+
 To assess the final model, we can first focus on the prediction capabilities and then around explanatory capabilities.
 
 From a prediction perspective we can first plot the fitted values versus the actual values to get a visual look of how the chosen model performs on the training set:
@@ -436,9 +444,9 @@ plot(train_hd$SalePrice, exp(fitted(model_add_mix)),
 abline(0, 1, lwd = 2, col = "dodgerblue")
 ```
 
-ADD COMMENTS HERE (variance for high prices seem to increase. Model looks really good below 400 000 dollars)
+The obtained plot is self-explanatory. The points are very close to the identity line which means that the predictions are relatively similar to the actual values. It seems that there is a constant variance around the identity line (perhaps the epsilon of our model) which increases as the actual price increases. A possible explanation for this is that, in practical terms, expensive houses are not easy to sell so the price can fluctuate a lot depending on the negotiations terms of the sale, therefore, the price is not as 'easy' to predict than lower price homes.
 
-Let's do the same but this time for the test set. Let's store the predicted values in a variable to be used on calculating more results.
+Let's do the same for the test set. The predicted values are first stored in a variable so we can use it later to calculate more results.
 
 ```{r}
 # We are removing a conflicting observation for "Kitchen Qual" that is only present on the test set
@@ -460,7 +468,87 @@ plot(test_hd$SalePrice, predicted,
 abline(0, 1, lwd = 2, col = "dodgerblue")
 ```
 
+We can see that the behavior of this plot is really similar to the plot of the training set. The model seems to be doing a great job on predicting prices. For higher values, the deviation is bigger which confirms the idea that the price of an expensive house is difficult to predict. More iterations of the model can be included in order to improve the prediction of those high priced houses.
+
+Quantitatively, the chosen model has an adjusted $R^2$ of `r summary(model_add_mix)$adj.r.squared`. This is a decent value which can be interpreted as the model being able to explain a big part of the variation of the response. In terms of the test set we can calculate the RMSE which will simplify in a number what we saw in the previous plot:
+
+```{r}
+rmse_test = sqrt(mean((test_hd$SalePrice - predicted)^2))
+rmse_test
+```
+
+The obtained RMSE for the test set is `r rmse_test`. Let's compare it with the training RMSE. This will give us a clue around overfitting issues. Both results are put together in a table:
+
+```{r}
+rmse_train = sqrt(mean((train_hd$SalePrice - exp(fitted(model_add_mix)))^2))
+rmse_train
+
+library("knitr")
+results = data.frame('Training' = c(rmse_train), 'Test' = c(rmse_test))
+rownames(results) <- c("RMSE")
+kable(results, format = "markdown")
+```
+
+The test RMSE is lower than the training RMSE. That's a good signal that the model is not overfitting the data. This has a positive impact on the predictive goal of our model.
+
+To sustain our theory that our model is better on predicting lower prices, we can calculate the RMSE for house prices less than 200000 dollars:
+
+```{r}
+sqrt(mean((test_hd$SalePrice[test_hd$SalePrice < 200000] - predicted[which(test_hd$SalePrice < 200000)])^2))
+```
+
+Notice how the test RMSE is significantly reduced.
+
+One good way to assess our model against others in terms of prediction is by checking Kaggle's competition. There is a public leaderboard that scores models by RMSLE over a test set. All those models are using the same dataset that we used for our project. The RMSLE of our model is given by:
+
+```{r}
+sqrt(mean((log(test_hd$SalePrice) - log(predicted))^2))
+```
+
+As of today, this score would place our model on position 43 out of 4741, not bad at all. The highest score by the date this report was submitted is 0.08397.
+
+Let's now focus on the explanatory capabilities of our model. Even though we were able to siginificantly reduced the amount of predictors used (20 out of 80), the model is not passing the assumptions tests, and there is an evident deviance on the normal Q-Q plot. Let's review this information:
+
+```{r}
+get_overview(model_add_mix)
+```
+
+As you can see both assumption tests (Shapiro and Breusch) are returning really small values which is a clear violation of normality and constant variance. This means that any interpretation coming from the coefficients is suspect and this model shouldn't be used for explanatory purposes as it is now. Moreover, even if the assumptions weren't violated, the use of 20 predictors and 89 coefficients would make an explanation almost impossible to digest for a human.
+
 ### Practical questions derived from the dataset
+
+## Discussion
+
+This section will be focused on analyze the usefulness of the chosen model based on the results shown on the previous section, discuss the answers provided for the practical questions defined in the proposal, and some lessons learned while playing around with the data itself. Let's enumarate them by category:
+
+- **Prediction**:
+    - The model was chosen by significantly reducing the number of predictors and combining several techniques studied in the course (forward selection process, correlation analysis, statistical tests, unusual observations analysis, etc) without sacrificing prediction usefulness. The chosen model returned the lowest LOOCV RMSE of all our analysis compared to the other models tested (`r loocv_rmse_final_mod`, remember that this LOOCV RMSE value is calculated using the log of the response). This is a nice metric which prevents overfitting, penalizes larger models implicitly, and focuses on errors which increase the confidence around prediction capabilities.
+    - Two plots were provided to compare predicted vs actual sale prices for both, the training set and the test set. There is a nice trend close to the identity line and an obvious increase of variance for expensive houses. From these results we can conclude that our model is better on predicting average priced houses. More adjustments can be considered to improve the prediction for those houses, or maybe those are simply difficult to predict due to the elevated price and negotiation conditions.
+    - RMSE for both, training and test set, was provided. The RMSE of the test set is lower than the training set which give us confidence around not having any overfitting issue.
+    - RMSE is radically improved by filtering house prices lower than 200000 dollars. This confirms our conclusion around the model being better on predicting lower priced houses.
+    - RMSLE for our test set was calculated. We did this to relatively compare our model to thousands of other models submitted on a Kaggle competition that used exactly the same dataset. As of today, our model would be on position 43 out of more than four thousand models.
+
+- **Explanation**:
+    - The normality and constant variance assumptions are violated by the model. Even though the goal of creating a model with a reduced amount of predictors was achieved, we couldn't improve the assumption metrics. In other words, the coefficients shouldn't be used to try to explain any relationship. The practical questions that we tried to answer are better explanation examples than the chosen model itself.
+
+- **Practical questions**: TODO: ADD HERE.
+  
+- **General**:
+    - The process of cleaning the data is not trivial at all. Even though this dataset was cured previously by the author, there are still many `NA`s and subtleties to play with. From removing useless predictors (like identifiers or observation counters) to finding outliers and remove observations that can break prediction when dividing the test and the training set (e.g. some categories with only one observation).
+    - Exhaustive selection methods are not always an option. We started by trying using the `regsubsets` function with all the predictors, but the processing time was insane. We then decided on using a different approach combinind transformations, a forward selection method, and a collinearity and correlation analysis. In other words, there is no a single recipe to find a 'good' model.
+    - A general exploration data is key before starting a model selection process. You need to know your data, check the description of the predictors, and use a bit of expertise and intuition to set a baseline model and iterate from there.
+
+## Appendix
+
+Here is a list of libraries that must be installed in order to run the RMD file attached to this assignment. Please make sure you have all of them installed:
+
+```{r, eval = FALSE}
+install.packages("readr")
+install.packages("lmtest")
+install.packages("faraway")
+install.packages("knitr")
+install.packages("jtools")
+```
 
 ## References
 

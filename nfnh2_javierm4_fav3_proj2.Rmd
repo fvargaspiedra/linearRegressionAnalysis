@@ -1,7 +1,7 @@
 ---
 title: "Prediction of House Prices in Ames, Iowa Using Regression Analysis Techniques"
 author: "Hari Manan (NetID: nfnh2), Javier Matias (NetID: javierm4), Francisco Vargas (NetID: fav3)"
-date: 'August 4th, 2018'
+date: 'August 3rd, 2018'
 output:
   html_document: 
     toc: yes
@@ -40,7 +40,6 @@ $H_1: \beta_{j,LivArea:Neighborhood} \neq 0,  \forall j \text{ - At least one ne
 using a confidence level of $\alpha= 0.01$.
 
 We will also attempt to infer which neighborhoods place the highest monetary values on living area and determine whether the living area predictor is collinear with other predictors.
-
 
 ### Housing Dataset
 
@@ -151,7 +150,7 @@ char_var = lapply(housing_data, class) == "character"
 housing_data[, char_var] = lapply(housing_data[, char_var], as.factor)
 ```
 
-### Baseline analysis
+### Baseline analysis for predictive model
 
 As stated in the `Introduction` the goal of the project is to obtain a model for predicting sales price, but trying to keep it simple. In other words, finding a good balance between prediction and explanation.
 
@@ -304,7 +303,7 @@ We can notice that the obtained plot is much better and the `log transformation`
 
 Let's use this transformed additive model as our baseline. There are still many paramaters that can be improved.
 
-### Selection methods 
+### Selection methods for predictive model
 
 There are many predictors to play with. We can try to choose a smaller base of "relevant" numerical predictors and then assess the addition of categorical variables through a `forward` process.
 
@@ -427,12 +426,65 @@ loocv_rmse_final_mod
 
 This is a much better value than our previous model, which is super good for prediction purposes. The `model_add_mix` is our final choice. We'll assess it against the test set in the `results` section. We'll also discuss the chosen model in general.
 
+### Exploratory question: Neighborhood Effect on Living Area Price
+
+Now we can begin our exploratory data analysis. To examine the relationship between `Neighborhood` and `SalePrice`, we will perform a simple one-way ANOVA to determine whether belonging to different neighborhoods has any effect on `SalePrice` at all.
+
+```{r}
+neighborhood_oneway_anova = aov(SalePrice ~ Neighborhood, data = housing_data)
+neigh_oneway_anova_summary = summary(neighborhood_oneway_anova)
+```
+
+A simple linear model would allow us to infer whether the Ground Living Area (`Gr.Liv.Area`) of a house has any relationship with `SalePrice`.
+
+```{r}
+livarea_model = lm(SalePrice ~ `Gr Liv Area`, data = housing_data)
+livarea_model_summary = summary(livarea_model)
+```
+
+And, in order to infer whether or not a house's living area is more expensive in some neighborhoods than others, we'll perform Analysis of Co-Variance (ANCOVA) by including an interaction term between the continous variable `Gr.Liv.Area` and the categorical variable `Neighborhood`. If the slopes of `Gr.Liv.Area` are different (not parallel) for different neighborhoods, then we would notice a strong interaction between the two predictors.
+
+```{r}
+## Workaround
+housing_data_alias = housing_data
+housing_data_alias$Gr.Liv.Area = housing_data$`Gr Liv Area`
+
+neigh_livarea_interaction_model = lm(SalePrice ~ Gr.Liv.Area*Neighborhood, data=housing_data_alias)
+neigh_livarea_anova = anova(neigh_livarea_interaction_model)
+p_value_neigh_livarea_interact =anova(neigh_livarea_interaction_model)[3,5]
+```
+
+We will also estimate actual slopes of the lines of `SalePrice` vs. `Gr.Liv.Area` for different neighborhoods to examine any differences.
+
+```{r}
+livarea_slopes_raw = sim_slopes(neigh_livarea_interaction_model, pred=Gr.Liv.Area, modx=Neighborhood,
+                        johnson_neyman = FALSE,centered= "none", confint=T)
+
+livarea_slopes = data.frame(livarea_slopes_raw$slopes[,1:5],stringsAsFactors=FALSE)
+livarea_slopes[,2:5] = sapply(livarea_slopes[,2:5], as.double)
+livarea_slopes[,2:5] = sapply(livarea_slopes[,2:5], signif, digits=4)
+
+colnames(livarea_slopes)[1] = "Neighborhood"
+colnames(livarea_slopes)[3] = "Std. Err."
+colnames(livarea_slopes)[4] = "2.5%"
+colnames(livarea_slopes)[5] = "97.5%"
+```
+
+Lastly, in order to determine whether the effect of `Gr.Liv.Area` on `SalePrice` is not explained by other predictors, we'll calculate the partial correlation coefficient between them with the effect of all other predictors removed. 
 
 ## Results
 
-### Predictive model chosen
+### Predictive model
 
 The chosen model to predict Sale Price for the given dataset was stored in `model_add_mix`. It uses 20 predictors out of 80 originally available, which is aligned to our initial commitment towards not only getting a good model for prediction, but also a balanced model between prediction and explanation. 12 of those predictors are categorical and 8 numerical.
+
+Below you can see the formula of the chosen model, which includes all the predictors and transformations used:
+
+```{r}
+model_add_mix$call
+```
+
+Since some of the predictors are categorical, then the number of coefficients in the model is bigger than the number of predictors used (due to the use of dummy variables). The model has in total `r length(model_add_mix$coefficients)` coefficients. 
 
 To assess the final model, we can first focus on the prediction capabilities and then around explanatory capabilities.
 
@@ -447,9 +499,9 @@ plot(train_hd$SalePrice, exp(fitted(model_add_mix)),
 abline(0, 1, lwd = 2, col = "dodgerblue")
 ```
 
-ADD COMMENTS HERE (variance for high prices seem to increase. Model looks really good below 400 000 dollars)
+The obtained plot is self-explanatory. The points are very close to the identity line which means that the predictions are relatively similar to the actual values. It seems that there is a constant variance around the identity line (perhaps the epsilon of our model) which increases as the actual price increases. A possible explanation for this is that, in practical terms, expensive houses are not easy to sell so the price can fluctuate a lot depending on the negotiations terms of the sale, therefore, the price is not as 'easy' to predict than lower price homes.
 
-Let's do the same but this time for the test set. Let's store the predicted values in a variable to be used on calculating more results.
+Let's do the same for the test set. The predicted values are first stored in a variable so we can use it later to calculate more results.
 
 ```{r}
 # We are removing a conflicting observation for "Kitchen Qual" that is only present on the test set
@@ -471,80 +523,56 @@ plot(test_hd$SalePrice, predicted,
 abline(0, 1, lwd = 2, col = "dodgerblue")
 ```
 
+We can see that the behavior of this plot is really similar to the plot of the training set. The model seems to be doing a great job on predicting prices. For higher values, the deviation is bigger which confirms the idea that the price of an expensive house is difficult to predict. More iterations of the model can be included in order to improve the prediction of those high priced houses.
 
-
-## Unmerged stuff from ANOVA
-
-
-### Methods
-
-We will begin by loading the housing data stored in `AmesHousing.csv`. We will also define a convenience function `splitDataset` that will randomly split the data into two data sets: *"train"* and *"test"*.
-```{r message=FALSE, warning=FALSE}
-
-splitDataset = function(data) {
-  training = createDataPartition(data$SalePrice, times=1, p=0.80, list=FALSE)
-  return(list(train=data[training,], test=data[-training,]))
-}
-
-
-splits = splitDataset(housing_data)
-training_data = splits$train
-test_data = splits$test
-```
-
-Now we can begin our exploratory data analysis. To examine the relationship between `Neighborhood` and `SalePrice`, we will perform a simple one-way ANOVA to determine whether belonging to different neighborhoods has any effect on `SalePrice` at all.
+Quantitatively, the chosen model has an adjusted $R^2$ of `r summary(model_add_mix)$adj.r.squared`. This is a decent value which can be interpreted as the model being able to explain a big part of the variation of the response. In terms of the test set we can calculate the RMSE which will simplify in a number what we saw in the previous plot:
 
 ```{r}
-neighborhood_oneway_anova = aov(SalePrice ~ Neighborhood, data=housing_data)
-neigh_oneway_anova_summary = summary(neighborhood_oneway_anova)
+rmse_test = sqrt(mean((test_hd$SalePrice - predicted)^2))
+rmse_test
 ```
 
-A simple linear model would allow us to infer whether the Ground Living Area (`Gr.Liv.Area`) of a house has any relationship with `SalePrice`.
+The obtained RMSE for the test set is `r rmse_test`. Let's compare it with the training RMSE. This will give us a clue around overfitting issues. Both results are put together in a table:
 
 ```{r}
-livarea_model = lm(SalePrice ~ `Gr Liv Area`, data=housing_data)
-livarea_model_summary = summary(livarea_model)
+rmse_train = sqrt(mean((train_hd$SalePrice - exp(fitted(model_add_mix)))^2))
+rmse_train
+
+library("knitr")
+results = data.frame('Training' = c(rmse_train), 'Test' = c(rmse_test))
+rownames(results) <- c("RMSE")
+kable(results, format = "markdown")
 ```
 
-And, in order to infer whether or not a house's living area is more expensive in some neighborhoods than others, we'll perform Analysis of Co-Variance (ANCOVA) by including an interaction term between the continous variable `Gr.Liv.Area` and the categorical variable `Neighborhood`. If the slopes of `Gr.Liv.Area` are different (not parallel) for different neighborhoods, then we would notice a strong interaction between the two predictors.
+The test RMSE is lower than the training RMSE. That's a good signal that the model is not overfitting the data. This has a positive impact on the predictive goal of our model.
+
+To sustain our theory that our model is better on predicting lower prices, we can calculate the RMSE for house prices less than 200000 dollars:
+
 ```{r}
-## Workaround
-housing_data_alias = housing_data
-housing_data_alias$Gr.Liv.Area = housing_data$`Gr Liv Area`
-
-neigh_livarea_interaction_model = lm(SalePrice ~ Gr.Liv.Area*Neighborhood, data=housing_data_alias)
-neigh_livarea_anova = anova(neigh_livarea_interaction_model)
-p_value_neigh_livarea_interact =anova(neigh_livarea_interaction_model)[3,5]
+sqrt(mean((test_hd$SalePrice[test_hd$SalePrice < 200000] - predicted[which(test_hd$SalePrice < 200000)])^2))
 ```
 
-We will also estimate actual slopes of the lines of `SalePrice` vs. `Gr.Liv.Area` for different neighborhoods to examine any differences.
+Notice how the test RMSE is significantly reduced.
+
+One good way to assess our model against others in terms of prediction is by checking Kaggle's competition. There is a public leaderboard that scores models by RMSLE over a test set. All those models are using the same dataset that we used for our project. The RMSLE of our model is given by:
+
 ```{r}
-livarea_slopes_raw = sim_slopes(neigh_livarea_interaction_model, pred=Gr.Liv.Area, modx=Neighborhood,
-                        johnson_neyman = FALSE,centered= "none", confint=T)
-
-livarea_slopes = data.frame(livarea_slopes_raw$slopes[,1:5],stringsAsFactors=FALSE)
-livarea_slopes[,2:5] = sapply(livarea_slopes[,2:5], as.double)
-livarea_slopes[,2:5] = sapply(livarea_slopes[,2:5], signif, digits=4)
-
-colnames(livarea_slopes)[1] = "Neighborhood"
-colnames(livarea_slopes)[3] = "Std. Err."
-colnames(livarea_slopes)[4] = "2.5%"
-colnames(livarea_slopes)[5] = "97.5%"
+sqrt(mean((log(test_hd$SalePrice) - log(predicted))^2))
 ```
 
+As of today, this score would place our model on position 43 out of 4741, not bad at all. The highest score by the date this report was submitted is 0.08397.
 
-Lastly, in order to determine whether the effect of `Gr.Liv.Area` on `SalePrice` is not explained by other predictors, we'll calculate the partial correlation coefficient between them with the effect of all other predictors removed. 
+Let's now focus on the explanatory capabilities of our model. Even though we were able to siginificantly reduced the amount of predictors used (20 out of 80), the model is not passing the assumptions tests, and there is an evident deviance on the normal Q-Q plot. Let's review this information:
 
+```{r}
+get_overview(model_add_mix)
+```
 
+As you can see both assumption tests (Shapiro and Breusch) are returning really small values which is a clear violation of normality and constant variance. This means that any interpretation coming from the coefficients is suspect and this model shouldn't be used for explanatory purposes as it is now. Moreover, even if the assumptions weren't violated, the use of 20 predictors and 89 coefficients would make an explanation almost impossible to digest for a human.
 
-
-### Results
-
-#### Neighborhood Effect on Living Area Price
-
+### Exploratory question: Neighborhood Effect on Living Area Price
 
 From out first ANOVA of `Neighborhood` and `SalePrice`, it can easily be seen that the neighborhood had a significant effect on the price. We can also see this graphically using a box-plot.
-
 
 ```{r fig.height=5, fig.width=10}
 neigh_oneway_anova_summary
@@ -576,7 +604,7 @@ print(neigh_livarea_anova[-4,], signif.stars=FALSE)
 
 Because of this, we obtain different slopes for `Gr.Liv.Area` depending on `Neighborhood`. Each of the slope estimates are the sum of the `Gr.Liv.Area` coefficient and its interaction term with the corresponding `Neighborhood` factor dummy variable. As with all estimates, we can calculate a mean and a confidence interval.
 
-```{r fig.height=5, fig.width=10, htmlcap="Figure X: FOOOBAR"}
+```{r fig.height=5, fig.width=10}
 
 ## Get the top 5 neighborhoods with the most houses
 ordered_neigh = order(-table(housing_data$Neighborhood))
@@ -590,14 +618,27 @@ interact_plot(neigh_livarea_interaction_model, pred=Gr.Liv.Area,
   theme(plot.title = element_text(hjust = 0.5))
 ```
 
-```{r htmlcap="Table X: FOOBAR"}
+```{r}
 kable(livarea_slopes)
 ```
 
+## Discussion
 
-### Discussion
+This section will be focused on analyze the usefulness of the chosen model based on the results shown on the previous section, discuss the answers provided for the exploratory question defined in the proposal, and some lessons learned while playing around with the data itself.
 
-#### Relationship between Neighborhood, Sale Price and Other Predictors
+### Predictive model: prediction
+
+    - The model was chosen by significantly reducing the number of predictors and combining several techniques studied in the course (forward selection process, correlation analysis, statistical tests, unusual observations analysis, etc) without sacrificing prediction usefulness. The chosen model returned the lowest LOOCV RMSE of all our analysis compared to the other models tested (`r loocv_rmse_final_mod`, remember that this LOOCV RMSE value is calculated using the log of the response). This is a nice metric which prevents overfitting, penalizes larger models implicitly, and focuses on errors which increase the confidence around prediction capabilities.
+    - Two plots were provided to compare predicted vs actual sale prices for both, the training set and the test set. There is a nice trend close to the identity line and an obvious increase of variance for expensive houses. From these results we can conclude that our model is better on predicting average priced houses. More adjustments can be considered to improve the prediction for those houses, or maybe those are simply difficult to predict due to the elevated price and negotiation conditions.
+    - RMSE for both, training and test set, was provided. The RMSE of the test set is lower than the training set which give us confidence around not having any overfitting issue.
+    - RMSE is radically improved by filtering house prices lower than 200000 dollars. This confirms our conclusion around the model being better on predicting lower priced houses.
+    - RMSLE for our test set was calculated. We did this to relatively compare our model to thousands of other models submitted on a Kaggle competition that used exactly the same dataset. As of today, our model would be on position 43 out of more than four thousand models.
+
+### Predictive model: explanation
+
+    - The normality and constant variance assumptions are violated by the model. Even though the goal of creating a model with a reduced amount of predictors was achieved, we couldn't improve the assumption metrics. In other words, the coefficients shouldn't be used to try to explain any relationship. The practical questions that we tried to answer are better explanation examples than the chosen model itself.
+
+### Exploratory question: relationship between Neighborhood, Sale Price and Other Predictors
 
 Having observed how both `Neighborhood` and `Gr.Liv.Area` interact with each other and influence `SalePrice`, it is important to highlight that it **does not imply a casual relationship** between them. This becomes more evident when we examine the partial correlation coefficient of `Gr.Liv.Area` and `SalePrice` with the effect of all other 78 predictors removed. We observe that its magnitude is less than 0.01.
 
@@ -609,6 +650,23 @@ livarea_collinearity  = lm(`Gr Liv Area`~ . -SalePrice, data=housing_data)
  
 Therefore, ground living area is collinear with many of the other predictors available in the dataset, and does not independently predict price. We can, however, **reject the null hypothesis** that the average price per square foot of living space is equal for all neighborhoods with a confidence level $\alpha= 0.01$.
 
+### General
+
+    - The process of cleaning the data is not trivial at all. Even though this dataset was cured previously by the author, there are still many `NA`s and subtleties to play with. From removing useless predictors (like identifiers or observation counters) to finding outliers and remove observations that can break prediction when dividing the test and the training set (e.g. some categories with only one observation).
+    - Exhaustive selection methods are not always an option. We started by trying using the `regsubsets` function with all the predictors, but the processing time was insane. We then decided on using a different approach combinind transformations, a forward selection method, and a collinearity and correlation analysis. In other words, there is no a single recipe to find a 'good' model.
+    - A general exploration data is key before starting a model selection process. You need to know your data, check the description of the predictors, and use a bit of expertise and intuition to set a baseline model and iterate from there.
+
+## Appendix
+
+Here is a list of libraries that must be installed in order to run the RMD file attached to this assignment. Please make sure you have all of them installed:
+
+```{r, eval = FALSE}
+install.packages("readr")
+install.packages("lmtest")
+install.packages("faraway")
+install.packages("knitr")
+install.packages("jtools")
+```
 
 ## References
 
