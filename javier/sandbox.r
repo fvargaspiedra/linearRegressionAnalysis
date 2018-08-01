@@ -23,7 +23,6 @@ summary(model_add)
 
 
 
-
 ### Search for the most significant predictors from a linear model
 stepwise_search_init_formula = formula(SalePrice ~ .)
 full = lm(stepwise_search_add_result_formula, data = housing_data)

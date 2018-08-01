@@ -10,9 +10,15 @@ urlcolor: cyan
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
-options(digits=8)
+library(knitr)
 
+#knitr::opts_chunk$set(echo = TRUE)
+#options(digits=8)
+knit_hooks$set(htmlcap = function(before, options, envir) {
+  if(!before) {
+      paste('<p style="text-align: center;" class="caption">',options$htmlcap,"</p>",sep="")
+    }
+})
 ```
 
 ```{r message=FALSE, warning=FALSE}
@@ -22,7 +28,6 @@ library(lmtest)
 library(jtools)
 library(emmeans)
 library(car)
-library(knitr)
 
 source("load_dataset.r")
 source("transformations.r")
@@ -52,7 +57,7 @@ training_data = splits$train
 test_data = splits$test
 ```
 
-Now we can begin our exploratory data analysis. To examine the relationship between `Neighborhood` and `SalePrice`, we will perform a simple one-way ANOVA to determine whether it has any effect on `SalePrice` at all.
+Now we can begin our exploratory data analysis. To examine the relationship between `Neighborhood` and `SalePrice`, we will perform a simple one-way ANOVA to determine whether belonging to different neighborhoods has any effect on sale price at all.
 
 ```{r}
 neighborhood_oneway_anova = aov(SalePrice ~ Neighborhood, data=housing_data)
@@ -66,11 +71,13 @@ livarea_oneway_anova = aov(SalePrice ~ Gr.Liv.Area, data=housing_data)
 (livarea_oneway_anova_summary = summary(livarea_oneway_anova))
 ```
 
-Given that both the `Neighborhood` and the `Gr.Liv.Area` have an effect on `SalePrice`, it is interesting to analyze whether the effect on price of the living area varies across different neighborhoods. Namely, whether the average price per square feet varies. We'll build an interaction model to examine this.
+Given that both the `Neighborhood` and the `Gr.Liv.Area` have an effect on `SalePrice`, it is interesting to determine whether the effect on price of the living area varies across different neighborhoods. Namely, whether the average price per square feet varies. We'll build an interaction model to examine this.
 ```{r}
 neigh_livarea_interaction_model = lm(SalePrice ~ Gr.Liv.Area*Neighborhood, data=housing_data)
 neigh_livarea_anova = aov(neigh_livarea_interaction_model)
-(neigh_livarea_interact_summary = summary(neigh_livarea_anova)[[1]][,-5])
+neigh_livarea_interact_summary = summary(neigh_livarea_anova)
+print(neigh_livarea_interact_summary, signif.stars=FALSE)
+p_value_neigh_livarea_interact = neigh_livarea_interact_summary[[1]][3,5]
 ```
 
 We will also obtain the slopes of the lines of `SalePrice` vs. `Gr.Liv.Area` for different neighborhoods to examine their differences.
@@ -86,7 +93,6 @@ colnames(livarea_slopes)[1] = "Neighborhood"
 colnames(livarea_slopes)[3] = "Std. Err."
 colnames(livarea_slopes)[4] = "2.5%"
 colnames(livarea_slopes)[5] = "97.5%"
-kable(livarea_slopes)
 ```
 
 
@@ -99,35 +105,52 @@ partial_corr_livarea_saleprice = cor(resid(without_livarea),resid(livarea_collin
 ```
 
 
-
 ### Results
+
+#### Neighborhood Effect on Living Area Price
+
+
+From out first ANOVA of `Neighborhood` and `SalePrice`, it could easily be seen that the neighborhood had a significant effect on the price. We can also see this graphically using a box-plot.
+```{r fig.height=5, fig.width=10}
+boxplot(SalePrice ~ Neighborhood, data = housing_data,las=2, col=2:8, pch=20, cex=.7)
+```
+
+
+However, we also observed that the interaction model between `Neighborhood` and `Gr.Liv.Area` yielded a near-zero p-value of `r signif(neigh_livarea_interact_summary[[1]][3,5],4)`. This suggests a significant interaction between the two predictors when predicting `SalePrice`. 
+
+```{r}
+print(neigh_livarea_interact_summary, signif.stars=FALSE)
+```
+
+Because of this, we obtain different slopes for `Gr.Liv.Area` dependent on `Neighborhood`. These slope estimates are the sum of the `Gr.Liv.Area` coefficient and its interaction term between each of the factor dummy variables for `Neighborhood`. As with all estimates, we can also calculate a mean and a confidence interval.
+
+```{r fig.height=5, fig.width=10, htmlcap="Figure X: FOOOBAR"}
+
+## Get the top 5 neighborhoods with the most houses
+ordered_neigh = order(-table(housing_data$Neighborhood))
+
+interact_plot(neigh_livarea_interaction_model, pred=Gr.Liv.Area,
+              modx=Neighborhood,color.class="Qual1",
+              modxvals = names(table(housing_data$Neighborhood)[ordered_neigh][1:6]),
+              x.label="General Living Area (square feet)",
+              y.label="Sale Price (US Dollars)") +
+  ggtitle("Gr.Liv.Area Slopes of top 5 neighborhoods" ) +
+  theme(plot.title = element_text(hjust = 0.5))
+```
+
+```{r htmlcap="Table X: FOOBAR"}
+kable(livarea_slopes)
+```
+
 
 ### Discussion
 
+#### Relationship between Neighborhood, Sale Price and Other Predictors
 
-
-
-### Old stuff to be removed
+Having observed how both `Neighborhood` and `Gr.Liv.Area` interact with each other and influence `SalePrice`, it is important to highlight that it **does imply a casual relationship** between them. This becomes even more evident when we examine the partial correlation coefficient of `Gr.Liv.Area` and `SalePrice` with the effect of all other predictors removed.
 
 ```{r}
-housing_data$base = ifelse(housing_data$BsmtFin.SF.1 > 0,"Yes","No") 
-table(housing_data$base)
-
-model = lm(SalePrice ~  Gr.Liv.Area*Neighborhood, data=housing_data)
-summary = anova(model)
-summary(model)
+partial_corr_livarea_saleprice
 ```
-P-value of the interaction between Neighborhood and Living Area appears is very small (`r  summary[3,5]`), meaning that different Neighborhoods appear to place a higher value on living space.
-
-We'll plot the slopes of the 6 neighborhoods with the largest amount of observations.
-```{r}
-ordered_neigh = order(-table(housing_data$Neighborhood))
-interact_plot(model, pred=Gr.Liv.Area, modx=Neighborhood, color.class="Qual1",
-              modxvals = names(table(housing_data$Neighborhood)[ordered_neigh][1:6]))
-
-```
-
-We notice that the slops are different depending on the neighborhood. We'll do slope analysis to see which of the Gr.Liv.Area slopes are significant.
-
 
 
