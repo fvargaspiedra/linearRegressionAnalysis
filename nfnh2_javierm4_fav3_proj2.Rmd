@@ -1,0 +1,470 @@
+---
+title: "Prediction of House Prices in Ames, Iowa Using Regression Analysis Techniques"
+author: "Hari Manan (NetID: nfnh2), Javier Matias (NetID: javierm4), Francisco Vargas (NetID: fav3)"
+date: 'August 4th, 2018'
+output:
+  html_document: 
+    toc: yes
+  pdf_document: default
+urlcolor: cyan
+---
+
+```{r setup, include=FALSE}
+library(knitr)
+
+#knitr::opts_chunk$set(echo = TRUE)
+#options(digits=8)
+knit_hooks$set(htmlcap = function(before, options, envir) {
+  if(!before) {
+      paste('<p style="text-align: center;" class="caption">',options$htmlcap,"</p>",sep="")
+    }
+})
+```
+
+## Introduction
+
+### Sale Price Prediction Model
+
+The main goal of this study is to develop a model to predict the sale price of a house. A well performing model should provide an acceptable level of predictive accuracy, as well as use a limited number of features with the aim of reducing complexity and overfitting. A model of reduced size seeks to acheive a useful balance between the prediction and explanation goals.
+
+### Effect of Neighborhood on Living Area Price
+
+For this study, we will also perform some exploratory data analysis to explain how the effect of a continous predictor on the response varies across different treatment groups of a categorical predictor. Namely, we'll test:
+
+$H_0: \beta_{j,LivArea:Neighborhood} = 0, \forall j \text{ - The mean price per square foot of a house is the same for every neighborhood j }$
+
+$H_1: \beta_{j,LivArea:Neighborhood} \neq 0,  \forall j \text{ - At least one neighborhood j has a different mean price per square foot than others }$,
+
+using a confidence level of $\alpha= 0.01$.
+
+We will also attempt to infer which neighborhoods place the highest monetary values on living area and determine whether the living area predictor is collinear with other predictors.
+
+
+### Housing Dataset
+
+To develop the model, we will use a dataset describing houses sold between 2006 and 2010 in Ames, Iowa. This data set was compiled by Dean DeCock in 2011, and it provides over 2800 observations with 81 features (23 nominal/categorical, 23 ordinal, 14 discrete, and 21 continuous).
+
+The features can be roughly divided into 6 categories.
+
+- **House characteristics**: e.g. number of bedrooms, number of bathrooms, electrical system
+- **Space measurements**: e.g. lot area, living area
+- **Quality ratings**: e.g. overall condition, kitchen condition
+- **Construction characteristics and materials**: e.g. roof material
+- **Zone and location classification**: e.g. zoning classification, neighborhood
+- **Terms of sale**: e.g. month and year sold, sale price
+
+## Methods
+
+### Data Cleaning
+
+The first step is to load the original data that is attached to this project in the `data` directory:
+
+```{r message=FALSE}
+library(readr)
+
+# Load the data
+housing_data = read_csv("data/AmesHousing.csv")
+```
+
+We are using a 'csv' file that was derived from the original 'xls' file just to use the well known `read_csv` function.
+
+### Cleaning the data
+
+There are two useless variables. `PID` is a unique identifier of each observation and `Order` is a counter for each observation. Let's get rid of those:
+
+```{r}
+housing_data = subset(housing_data, select = -Order)
+housing_data = subset(housing_data, select = -PID)
+```
+
+Let's start by understanding the structure of the original data and clean as needed.
+
+```{r}
+# Display structure of dataset
+str(housing_data)
+```
+
+From the previous output one can see that this dataset is composed by 2930 observations and 82 variables (80 when removing the two useless variables). There are only `chr` and `int` type variables. A description of each variable can be found here https://ww2.amstat.org/publications/jse/v19n3/decock/DataDocumentation.txt. 
+
+It's important to know whether there are `NA` values in the dataset and decide how to manage them. Let's see if there are variables containing `NA` values:
+
+```{r}
+hasNA = colSums(is.na(housing_data))[colSums(is.na(housing_data)) > 0]
+hasNA
+```
+
+As you can see `r length(hasNA)` variables contain `NA` values. Some of those variables have too many `NA`s, therefore we decided to remove any variable with more than 400 `NA`s:
+
+```{r}
+# Keep only those variables that has less than 400 NAs 
+housing_data = subset(housing_data, select = colSums(is.na(housing_data)) < 400)
+```
+
+After filtering, we now have `r dim(housing_data)[1]` observations and `r dim(housing_data)[2]` variables.
+
+In order to avoid any issue with the remaining observations that have `NA`s we are removing those as well:
+
+```{r}
+housing_data = na.omit(housing_data)
+```
+
+After filtering, we now have `r dim(housing_data)[1]` observations and `r dim(housing_data)[2]` variables. These are enough observations to work on our model without any problem.
+
+There are 5 unusual observations that were pointed out by the author of the dataset. These are easily observable by plotting `SalePrice` (price of the house) vs `Gr Liv Area` (above ground living area square feet) as follows:
+
+```{r}
+plot(housing_data$SalePrice ~ housing_data$`Gr Liv Area`,
+     col = ifelse(housing_data$`Gr Liv Area` > 4000, "orange", "dodgerblue"),
+     xlab = "Ground Living Area (square feet)",
+     ylab = "Sale Price (dollars)",
+     main = "Sale Price vs Ground Living Area",
+     pch = 20
+     )
+```
+
+As you can see there are 3 points that have an extremely low price for a huge ground living area, this doesn't make sense. The other two points seem to be priced correctly but those are unusual sales. Let's remove them:
+
+```{r}
+housing_data = housing_data[housing_data$`Gr Liv Area` < 4000, ]
+```
+
+During the analysis of the models we found out that there are two neighborhoods with 2 or less observations. We are removing those points since we don't have enough samples to make sure the data is evenly distributed on training and test.
+
+```{r}
+housing_data = housing_data[-which(housing_data$Neighborhood %in% c("GrnHill","Landmrk")),]
+```
+
+Finally, let's coerce all character columns as factors to fit the categorical predictors of the model without problem:
+
+```{r}
+# Determine variables that are of type character
+char_var = lapply(housing_data, class) == "character"
+# Coerce those columns to factor
+housing_data[, char_var] = lapply(housing_data[, char_var], as.factor)
+```
+
+### Baseline analysis
+
+As stated in the `Introduction` the goal of the project is to obtain a model for predicting sales price, but trying to keep it simple. In other words, finding a good balance between prediction and explanation.
+
+Before playing around with model selection, let's divide the data into a training and a test set. That will help us evaluate the final model chosen. We'll use the seed `420` for any random process so we can reproduce the results if needed.
+
+```{r}
+set.seed(420)
+
+# Get training indexes randomly (80% of the observations)
+train_index <- sample(seq_len(nrow(housing_data)), size = floor(0.8 * nrow(housing_data)))
+
+# Divide the data
+train_hd <- housing_data[train_index, ]
+test_hd <- housing_data[-train_index, ]
+```
+
+After splitting the data we now have `r dim(train_hd)[1]` observations for training and `r dim(test_hd)[1]` observations for test.
+
+In order to assess our models we are going to use the set of auxiliary functions defined on week's 9 assignment. We are also defining a macro function that calls all those auxiliary functions and show the results in a single call. This overview encompasses the p-value of the normality and constant variance assumptions through Shapiro and Breusch test, the Fitted vs Residuals plot, the normal Q-Q plot, the number of parameters used (betas), the LOOCV RMSE, and the adjusted $R^2$.
+
+```{r}
+# Library required for Breusch-Pagan test
+library(lmtest)
+
+# Plot Fitted vs Residuals
+plot_fitted_resid = function(model) {
+  plot(fitted(model), resid(model), 
+       col = "dodgerblue", pch = 20, cex = 1.5,
+       xlab = "Fitted", ylab = "Residuals",
+       main = "Fitted vs residuals plot")
+  abline(h = 0, col = "darkorange", lwd = 1)
+}
+
+# Plot Normal Q-Q
+plot_qq = function(model) {
+  qqnorm(resid(model), col = "dodgerblue", pch = 20, cex = 1.5)
+  qqline(resid(model), col = "darkorange", lwd = 1)
+}
+
+# Breusch-Pagan test (constant variance)
+get_bp_decision = function(model) {
+  bptest(model)$p.value
+}
+
+# Shapiro-Wilk test (normality)
+get_sw_decision = function(model) {
+  shapiro.test(resid(model))$p.value
+}
+
+# Number of parameters
+get_num_params = function(model) {
+  length(coef(model))
+}
+
+# LOOCV RMSE
+get_loocv_rmse = function(model) {
+  sqrt(mean((resid(model) / (1 - hatvalues(model))) ^ 2))
+}
+
+# Adjusted R^2
+get_adj_r2 = function(model) {
+  summary(model)$adj.r.squared
+}
+
+# Function that combines the previously defined functions
+get_overview = function(model) {
+  plot_fitted_resid(model)
+  plot_qq(model)
+  loocv_rmse = get_loocv_rmse(model)
+  adj_r2 = get_adj_r2(model)
+  bp_p_value = get_bp_decision(model)
+  shapiro_p_value = get_sw_decision(model)
+  betas = get_num_params(model)
+  list(loocv_rmse = loocv_rmse, adj_r2 = adj_r2, bp_p_value = bp_p_value, shapiro_p_value = shapiro_p_value, betas = betas)
+}
+```
+
+We can start the process of finding our model by using an additive model as a baseline:
+
+```{r}
+model_add = lm(SalePrice ~ ., data = train_hd)
+```
+
+Let's run the overview function to assess this baseline model:
+
+```{r}
+get_overview(model_add)
+```
+
+From the results above you can note that there are troubles on every resulting parameter, except the adjusted $R^2$. LOOCV RMSE is `inf` (because there are hat values equal to 1), both assumptions are violated (p-values are very low), and the number of parameters used is huge (because of the categorical variables, we end up having more betas than the number of predictors available). The Fitted vs Residuals plot also seems to violate both, the 0 mean at any fitted value and the constant variance at any fitted value (no linearity and no constant variance).
+
+Based on the normal Q-Q plot is evident that there is a huge deviation at the edges of the plot. We can apply a log transformation on the response and check whether this minimizes the effect:
+
+```{r}
+model_add_log = lm(log(SalePrice) ~ ., data = train_hd)
+get_overview(model_add_log)
+```
+
+The Shapiro's p-value is worse, but the normal Q-Q plot looks better. This can be due to some outliers that can be observed on the plot. 
+
+The outliers can be identified by using `plot` function:
+
+```{r, warning = FALSE}
+plot(model_add_log)
+```
+
+From the resulting plots we can see that observations `1682`, `578`, and `213` seem to be outliers. Let's remove them:
+
+```{r}
+train_hd = train_hd[-c(1682, 578, 213),]
+model_add_log = lm(log(SalePrice) ~ ., data = train_hd)
+get_overview(model_add_log)
+```
+
+It now looks a bit better, but there is still a noticeable violation of normality at the edges. The Fitted vs Residuals plot also looks better, especially the 0 mean at any fitted value.
+
+We tried to find outliers or influential points, but using the heuristics of the book is not possible to find any:
+
+```{r}
+# Number of influential points in the transformed model
+sum(cooks.distance(model_add_log) > 4 / length(cooks.distance(model_add_log)))
+
+# Number of outliers in the transformed model
+sum(abs(rstandard(model_add_log)) > 2)
+```
+
+We can also see the positive effect of the `log` function in the response by looking at its histogram. Without `log`:
+
+```{r}
+hist(train_hd$SalePrice, 
+     breaks = 30,
+     main = "Histogram of Sale Price without transformation",
+     xlab = "Sale Price",
+     col = "gray")
+```
+
+As you can see this plot is right skewed. This can be normalized by using `log`:
+
+```{r}
+hist(log(train_hd$SalePrice), 
+     breaks = 30,
+     main = "Histogram of Sale Price with log transformation",
+     xlab = "Sale Price",
+     col = "gray")
+```
+
+We can notice that the obtained plot is much better and the `log transformation` makes sense for the response.
+
+Let's use this transformed additive model as our baseline. There are still many paramaters that can be improved.
+
+### Selection methods 
+
+There are many predictors to play with. We can try to choose a smaller base of "relevant" numerical predictors and then assess the addition of categorical variables through a `forward` process.
+
+One way of doing this is by selecting those numerical predictors that are highly correlated to the response.
+
+```{r}
+# Get correlation list of all numerical variables against Sale Price
+sale_price_cor = cor(train_hd[sapply(train_hd, is.numeric)])[,"SalePrice"]
+sale_price_cor
+```
+
+We can then remove those values that are low in magnitude. We'll choose a threshold of 0.4:
+
+```{r}
+# Filter correlations with magnitude smaller than a specified threshold
+sale_price_cor = sale_price_cor[abs(sale_price_cor) > 0.4]
+sale_price_cor
+```
+
+We now have a smaller group of numerical predictors to choose from. By reading the documentation of this set of parameters one can see that some of them are the result of the others or are very related. This obviously leads to collinearity issues.
+
+Year built and year of remodelation are repetitive. If there was no remodelation the year built is used on `Year Remod/Add`. Let's keep `Year Remod/Add` only. 
+
+`BsmtFin SF 1` and `Total Bsmt SF` are also related. Let's keep `Total Bsmt SF` which has a higher correlation with SalePrice. Same happens with `1st Flr SF` and `Gr Liv Area`, we'll keep `Gr Liv Area`.
+
+There are also 3 numerical variables related to the garage. The `Garage Cars` seems to be the most relevant.
+
+We can now simplify our `sale_price_cor` vector with the chosen variables:
+
+```{r}
+# Auxiliary vector with names
+var = names(sale_price_cor)
+
+sale_price_cor = sale_price_cor[var != "Year Built" & var != "BsmtFin SF 1" & var != "1st Flr SF" & var != "Garage Yr Blt" & var != "Garage Area"]
+
+sale_price_cor
+```
+
+Let's fit a model with the chosen numerical variables and finish the collinearity study using `vif` analysis. Don't forget that we are transforming the response using `log`.
+
+```{r}
+# Fit a simple additive model with the chosen numerical variables
+model_add_num = lm(log(SalePrice) ~ ., data = train_hd[, names(sale_price_cor)])
+
+# Run vif test
+library(faraway)
+vif(model_add_num)
+```
+
+There are no values over 5 which is the heuristic used in the course book that should cause concern. It seems that we removed the right numerical variables.
+
+We can apply the `get_overview` function to evaluate assumptions as well:
+
+```{r}
+get_overview(model_add_num)
+```
+
+Everything looks similar to the additive model using all the predictors. This time the LOOCV RMSE is not `inf` which is also a good signal (no hat values of 1).
+
+Let's now check whether transforming any of these predictors makes sense. A visual inspection of `pairs` plot might suggest possible transformations.
+
+```{r}
+pairs(train_hd[, names(sale_price_cor)])
+```
+
+Based on this output, it seems that trying a `log` transformation on `Gr Liv Area` and `Total Bsmt SF` can make sense to soften the effect ot extreme values:
+
+```{r}
+model_add_num_log = lm(log(SalePrice) ~ `Overall Qual` + `Year Remod/Add` + `Mas Vnr Area` + log(`Total Bsmt SF`) + log(`Gr Liv Area`) + `Full Bath`  + `TotRms AbvGrd` + `Fireplaces` + `Garage Cars`, data = train_hd)
+get_overview(model_add_num_log)
+```
+
+After the transformation the assumption parameters improved and the rest remain almost the same. We can keep these changes.
+
+Let's now try to simplify the model using a backward selection procedure and AIC.
+
+```{r}
+model_add_num_log_back = step(model_add_num_log, direction = "backward", trace = 0)
+model_add_num_log_back$coefficients
+get_overview(model_add_num_log_back)
+```
+
+The number of rooms above the ground were removed from the model. Let's confirm that this is not a significant removal using an ANOVA test:
+
+```{r}
+p_val = anova(model_add_num_log_back, model_add_num_log)$"Pr(>F)"[2]
+p_val
+```
+
+We failed to reject the null hypothesis for any rational significance level, which means that the simplified model can be used and the number of rooms above ground were not significant. We now have only 9 numerical variables.
+
+Let's see whether this model can be improved by adding categorical variables. This can be done using a forward selection procedure and BIC to get the smaller possible model:
+
+```{r}
+# The scope includes all the filtered numerical variables plus all the available categorical variables
+model_add_mix = step(model_add_num_log_back, direction = "forward", scope = SalePrice ~ `Overall Qual` + `Year Remod/Add` + `Mas Vnr Area` + log(`Total Bsmt SF`) + log(`Gr Liv Area`) + `Full Bath` + `Fireplaces` + `Garage Cars` + Street + `MS SubClass` + `MS Zoning` + `Lot Shape` + `Land Contour` + Utilities + `Lot Config` + `Land Slope` + Neighborhood + `Condition 1` + `Condition 2` + `Bldg Type` + `House Style` + `Roof Style` + `Roof Matl` + `Exterior 1st` + `Exterior 2nd` + `Mas Vnr Type` + `Exter Qual` + `Exter Cond` + Foundation + `Bsmt Qual` + `Bsmt Cond` + `Bsmt Exposure` + `BsmtFin Type 1` + `BsmtFin Type 2` + Heating + `Heating QC` + `Central Air` + Electrical + `Kitchen Qual` + Functional + `Garage Type` + `Garage Finish` + `Garage Qual` + `Garage Cond` + `Paved Drive` + `Sale Type` + `Sale Condition`, k = log(length(resid(model_add_num_log_back))), trace = 0)
+```
+
+We can now run our diagnostics for the obtained model:
+
+```{r}
+get_overview(model_add_mix)
+```
+
+The assumptions plots remain the same. There is a noticeable improvement on adjusted $R^2$ and our LOOCV RMSE is `inf` again. This is due to some hat values being 1. Let's explore how many we have:
+
+```{r}
+sum(hatvalues(model_add_mix) == 1)
+```
+
+Since the number of conflicting hat_values is so low we can simply ignore them and calculate LOOCV RMSE manually:
+
+```{r}
+loocv_rmse_final_mod = sqrt(mean((resid(model_add_mix)[-which(hatvalues(model_add_mix) == 1)] / (1 - hatvalues(model_add_mix)[-which(hatvalues(model_add_mix) == 1)])) ^ 2))
+loocv_rmse_final_mod
+```
+
+This is a much better value than our previous model, which is super good for prediction purposes. The `model_add_mix` is our final choice. We'll assess it against the test set in the `results` section. We'll also discuss the chosen model in general.
+
+### Practical questions derived from the dataset
+
+## Results
+
+### Predictive model chosen
+
+The chosen model to predict Sale Price for the given dataset was stored in `model_add_mix`. It uses 20 predictors out of 80 originally available, which is aligned to our initial commitment towards not only getting a good model for prediction, but also a balanced model between prediction and explanation. 12 of those predictors are categorical and 8 numerical.
+
+To assess the final model, we can first focus on the prediction capabilities and then around explanatory capabilities.
+
+From a prediction perspective we can first plot the fitted values versus the actual values to get a visual look of how the chosen model performs on the training set:
+
+```{r}
+plot(train_hd$SalePrice, exp(fitted(model_add_mix)),
+     xlab = "Actual price (dollars)",
+     ylab = "Predicted price (dollars)",
+     main = "Predicted vs actual price in dollars for training set",
+     col = "orange")
+abline(0, 1, lwd = 2, col = "dodgerblue")
+```
+
+ADD COMMENTS HERE (variance for high prices seem to increase. Model looks really good below 400 000 dollars)
+
+Let's do the same but this time for the test set. Let's store the predicted values in a variable to be used on calculating more results.
+
+```{r}
+# We are removing a conflicting observation for "Kitchen Qual" that is only present on the test set
+# This is because there is only one observation with that value
+test_hd = test_hd[-which(test_hd$`Kitchen Qual` == "Po"),]
+
+# Predict values
+predicted = exp(predict(model_add_mix, test_hd))
+```
+
+We can now plot for the test set. These are unbiased results that can tell us a lot about the chosen model:
+
+```{r}
+plot(test_hd$SalePrice, predicted,
+     xlab = "Actual price (dollars)",
+     ylab = "Predicted price (dollars)",
+     main = "Predicted vs actual price in dollars for test set",
+     col = "orange")
+abline(0, 1, lwd = 2, col = "dodgerblue")
+```
+
+### Practical questions derived from the dataset
+
+## References
+
+1. De Cock, Dean. (2011). *Ames, Iowa: Alternative to the Boston Housing Data as an End of Semester Regression Project*. Journal of Statistics Education.
+2. *House Prices: Advanced Regression Techniques*. Obtained on July 9th, 2018, from: https://www.kaggle.com/c/house-prices-advanced-regression-techniques/data
+3. Dalpiaz, D. (2018). *Applied Statistics with R*. Obtained on July 9th, 2018, from: https://daviddalpiaz.github.io/appliedstats/
+4. De Cock, Dean. (2011). *Ames, Iowa house price dataset*. Obtained on July 9th, 2018, from: http://www.amstat.org/publications/jse/v19n3/decock/AmesHousing.xls
+5. De Cock, Dean. (2011). *Ames, Iowa house price dataset description*. Obtained on July 9th, 2018, from: https://ww2.amstat.org/publications/jse/v19n3/decock/DataDocumentation.txt
