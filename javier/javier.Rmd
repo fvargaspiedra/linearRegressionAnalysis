@@ -66,7 +66,7 @@ neighborhood_oneway_anova = aov(SalePrice ~ Neighborhood, data=housing_data)
 neigh_oneway_anova_summary = summary(neighborhood_oneway_anova)
 ```
 
-A simple linear model would allow us to infer whether the General Living Area (`Gr.Liv.Area`) of a house has any relationship with `SalePrice`.
+A simple linear model would allow us to infer whether the Ground Living Area (`Gr.Liv.Area`) of a house has any relationship with `SalePrice`.
 
 ```{r}
 livarea_model = lm(SalePrice ~ Gr.Liv.Area, data=housing_data)
@@ -122,7 +122,7 @@ Similarly, it is easily shown that `Gr.Liv.Area` has an effect on `SalePrice`.
 plot(SalePrice ~ Gr.Liv.Area, data = housing_data,
      xlab = "Living Area (square feet)",
      ylab = "Sale Price (US Dollars)",
-     main = "Sale Price vs General Living Area",
+     main = "Sale Price vs Ground Living Area",
      pch  = 20,
      cex  = .5,
      col  = "grey")
@@ -147,7 +147,7 @@ ordered_neigh = order(-table(housing_data$Neighborhood))
 interact_plot(neigh_livarea_interaction_model, pred=Gr.Liv.Area,
               modx=Neighborhood,color.class="Qual1",
               modxvals = names(table(housing_data$Neighborhood)[ordered_neigh][1:6]),
-              x.label="General Living Area (square feet)",
+              x.label="Ground Living Area (square feet)",
               y.label="Sale Price (US Dollars)") +
   ggtitle("Gr.Liv.Area Slopes of the 5 Neighborhoods with Most Sales" ) +
   theme(plot.title = element_text(hjust = 0.5))
@@ -170,7 +170,7 @@ livarea_collinearity  = lm(Gr.Liv.Area~ . -SalePrice, data=housing_data)
 (partial_corr_livarea_saleprice = cor(resid(without_livarea),resid(livarea_collinearity)))
 ```
  
-Therefore, general living area is collinear with many of the other predictors available in the dataset, and does not independently predict price. We can, however, **reject the null hypothesis** that the average price per square foot of living space is equal for all neighborhoods with a confidence level $\alpha= 0.01$.
+Therefore, ground living area is collinear with many of the other predictors available in the dataset, and does not independently predict price. We can, however, **reject the null hypothesis** that the average price per square foot of living space is equal for all neighborhoods with a confidence level $\alpha= 0.01$.
 
 
 

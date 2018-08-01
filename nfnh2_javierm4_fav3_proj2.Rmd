@@ -11,6 +11,8 @@ urlcolor: cyan
 
 ```{r setup, include=FALSE}
 library(knitr)
+library(caret)
+library(jtools)
 
 #knitr::opts_chunk$set(echo = TRUE)
 #options(digits=8)
@@ -25,7 +27,7 @@ knit_hooks$set(htmlcap = function(before, options, envir) {
 
 ### Sale Price Prediction Model
 
-The main goal of this study is to develop a model to predict the sale price of a house. A well performing model should provide an acceptable level of predictive accuracy, as well as use a limited number of features with the aim of reducing complexity and overfitting. A model of reduced size seeks to acheive a useful balance between the prediction and explanation goals.
+The main goal of this study is to develop a model to predict the sale price of a house. A well performing model should provide an acceptable level of predictive accuracy while using only a limited number of features with the aim of reducing complexity and overfitting. A model of reduced size seeks to acheive a useful balance between the prediction and explanation goals.
 
 ### Effect of Neighborhood on Living Area Price
 
@@ -57,43 +59,40 @@ The features can be roughly divided into 6 categories.
 
 ### Data Cleaning
 
-The first step is to load the original data that is attached to this project in the `data` directory:
+We will begin by loading the housing data stored in `AmesHousing.csv`.
 
 ```{r message=FALSE}
 library(readr)
-
-# Load the data
 housing_data = read_csv("data/AmesHousing.csv")
 ```
 
-We are using a 'csv' file that was derived from the original 'xls' file just to use the well known `read_csv` function.
-
-### Cleaning the data
-
-There are two useless variables. `PID` is a unique identifier of each observation and `Order` is a counter for each observation. Let's get rid of those:
+There are two variables that do not describe house qualities. `PID` is the unique identifier of each observation and `Order` is a counter for each observation.
 
 ```{r}
+### Remove non-relevant variables
 housing_data = subset(housing_data, select = -Order)
 housing_data = subset(housing_data, select = -PID)
 ```
 
-Let's start by understanding the structure of the original data and clean as needed.
 
+Next, we'll inspect the strucutre of the dataset.
 ```{r}
-# Display structure of dataset
-str(housing_data)
+dim(housing_data) ## Dimension of the dataset.
+table(sapply(housing_data, class)) ## Variable types
 ```
 
-From the previous output one can see that this dataset is composed by 2930 observations and 82 variables (80 when removing the two useless variables). There are only `chr` and `int` type variables. A description of each variable can be found here https://ww2.amstat.org/publications/jse/v19n3/decock/DataDocumentation.txt. 
+We can observe that the dataset is composed by 2930 observations and 80 variables. There are only `character` and `integer` variables. A description of each variable can be found at: https://ww2.amstat.org/publications/jse/v19n3/decock/DataDocumentation.txt. 
 
-It's important to know whether there are `NA` values in the dataset and decide how to manage them. Let's see if there are variables containing `NA` values:
+#### Null Values
+
+We'll examine whether there are `NA` values in the dataset and decide how to manage them.
 
 ```{r}
 hasNA = colSums(is.na(housing_data))[colSums(is.na(housing_data)) > 0]
 hasNA
 ```
 
-As you can see `r length(hasNA)` variables contain `NA` values. Some of those variables have too many `NA`s, therefore we decided to remove any variable with more than 400 `NA`s:
+`r length(hasNA)` variables contain `NA` values. Some of those variables have a high number `NA`s, therefore we decided to remove any variable with more than 400 `NA`s:
 
 ```{r}
 # Keep only those variables that has less than 400 NAs 
@@ -102,39 +101,48 @@ housing_data = subset(housing_data, select = colSums(is.na(housing_data)) < 400)
 
 After filtering, we now have `r dim(housing_data)[1]` observations and `r dim(housing_data)[2]` variables.
 
-In order to avoid any issue with the remaining observations that have `NA`s we are removing those as well:
+In order to avoid any issues with the remaining observations that have `NA`s we are removing those as well:
 
 ```{r}
 housing_data = na.omit(housing_data)
 ```
 
-After filtering, we now have `r dim(housing_data)[1]` observations and `r dim(housing_data)[2]` variables. These are enough observations to work on our model without any problem.
+After filtering, we now have `r dim(housing_data)[1]` observations and `r dim(housing_data)[2]` variables.
+
+#### Unusual Observations
+
+TODO: Is this fair? Should we come up with a another justification other than citing the author? Not sure...
 
 There are 5 unusual observations that were pointed out by the author of the dataset. These are easily observable by plotting `SalePrice` (price of the house) vs `Gr Liv Area` (above ground living area square feet) as follows:
 
-```{r}
+```{r fig.height=5, fig.width=10}
 plot(housing_data$SalePrice ~ housing_data$`Gr Liv Area`,
      col = ifelse(housing_data$`Gr Liv Area` > 4000, "orange", "dodgerblue"),
      xlab = "Ground Living Area (square feet)",
-     ylab = "Sale Price (dollars)",
+     ylab = "Sale Price (US Dollars)",
      main = "Sale Price vs Ground Living Area",
-     pch = 20
+     pch = 20,
+     cex = ifelse(housing_data$`Gr Liv Area` > 4000, 2, 0.7)
      )
 ```
 
-As you can see there are 3 points that have an extremely low price for a huge ground living area, this doesn't make sense. The other two points seem to be priced correctly but those are unusual sales. Let's remove them:
+We observe that 3 points that have an extremely low price for a huge ground living area. The other two points seem to be priced correctly but are heavy outliers.
 
 ```{r}
+## Remove observations with living area larger than 4000 sq ft.
 housing_data = housing_data[housing_data$`Gr Liv Area` < 4000, ]
 ```
 
-During the analysis of the models we found out that there are two neighborhoods with 2 or less observations. We are removing those points since we don't have enough samples to make sure the data is evenly distributed on training and test.
+We also note that two neighborhoods have less than 3 observations. A sample size smaller than 3 for a categorical group is not sufficiently large to derive meaningful estimates.
 
 ```{r}
+table(housing_data$Neighborhood)
+
+## Remove observations belonging neighborhoods smaller than 3
 housing_data = housing_data[-which(housing_data$Neighborhood %in% c("GrnHill","Landmrk")),]
 ```
 
-Finally, let's coerce all character columns as factors to fit the categorical predictors of the model without problem:
+Lastly, it is necesary to coerce all character columns as factors to fit the categorical predictors of the model:
 
 ```{r}
 # Determine variables that are of type character
@@ -164,14 +172,14 @@ After splitting the data we now have `r dim(train_hd)[1]` observations for train
 
 In order to assess our models we are going to use the set of auxiliary functions defined on week's 9 assignment. We are also defining a macro function that calls all those auxiliary functions and show the results in a single call. This overview encompasses the p-value of the normality and constant variance assumptions through Shapiro and Breusch test, the Fitted vs Residuals plot, the normal Q-Q plot, the number of parameters used (betas), the LOOCV RMSE, and the adjusted $R^2$.
 
-```{r}
+```{r message=FALSE, warning=FALSE}
 # Library required for Breusch-Pagan test
 library(lmtest)
 
 # Plot Fitted vs Residuals
 plot_fitted_resid = function(model) {
   plot(fitted(model), resid(model), 
-       col = "dodgerblue", pch = 20, cex = 1.5,
+       col = "dodgerblue", pch = 20, cex = .7,
        xlab = "Fitted", ylab = "Residuals",
        main = "Fitted vs residuals plot")
   abline(h = 0, col = "darkorange", lwd = 1)
@@ -179,7 +187,7 @@ plot_fitted_resid = function(model) {
 
 # Plot Normal Q-Q
 plot_qq = function(model) {
-  qqnorm(resid(model), col = "dodgerblue", pch = 20, cex = 1.5)
+  qqnorm(resid(model), col = "dodgerblue", pch = 20, cex = .7)
   qqline(resid(model), col = "darkorange", lwd = 1)
 }
 
@@ -210,6 +218,7 @@ get_adj_r2 = function(model) {
 
 # Function that combines the previously defined functions
 get_overview = function(model) {
+  par(mfrow=c(1,2)) #Plot two graphs in the same image
   plot_fitted_resid(model)
   plot_qq(model)
   loocv_rmse = get_loocv_rmse(model)
@@ -229,7 +238,7 @@ model_add = lm(SalePrice ~ ., data = train_hd)
 
 Let's run the overview function to assess this baseline model:
 
-```{r}
+```{r fig.height=5, fig.width=10}
 get_overview(model_add)
 ```
 
@@ -237,7 +246,7 @@ From the results above you can note that there are troubles on every resulting p
 
 Based on the normal Q-Q plot is evident that there is a huge deviation at the edges of the plot. We can apply a log transformation on the response and check whether this minimizes the effect:
 
-```{r}
+```{r fig.height=5, fig.width=10}
 model_add_log = lm(log(SalePrice) ~ ., data = train_hd)
 get_overview(model_add_log)
 ```
@@ -246,13 +255,14 @@ The Shapiro's p-value is worse, but the normal Q-Q plot looks better. This can b
 
 The outliers can be identified by using `plot` function:
 
-```{r, warning = FALSE}
+```{r fig.height=10, fig.width=10, warning=FALSE}
+par(mfrow=c(2,2))
 plot(model_add_log)
 ```
 
 From the resulting plots we can see that observations `1682`, `578`, and `213` seem to be outliers. Let's remove them:
 
-```{r}
+```{r fig.height=5, fig.width=10}
 train_hd = train_hd[-c(1682, 578, 213),]
 model_add_log = lm(log(SalePrice) ~ ., data = train_hd)
 get_overview(model_add_log)
@@ -348,7 +358,7 @@ There are no values over 5 which is the heuristic used in the course book that s
 
 We can apply the `get_overview` function to evaluate assumptions as well:
 
-```{r}
+```{r fig.height=5, fig.width=10}
 get_overview(model_add_num)
 ```
 
@@ -362,8 +372,9 @@ pairs(train_hd[, names(sale_price_cor)])
 
 Based on this output, it seems that trying a `log` transformation on `Gr Liv Area` and `Total Bsmt SF` can make sense to soften the effect ot extreme values:
 
-```{r}
+```{r fig.height=5, fig.width=10}
 model_add_num_log = lm(log(SalePrice) ~ `Overall Qual` + `Year Remod/Add` + `Mas Vnr Area` + log(`Total Bsmt SF`) + log(`Gr Liv Area`) + `Full Bath`  + `TotRms AbvGrd` + `Fireplaces` + `Garage Cars`, data = train_hd)
+
 get_overview(model_add_num_log)
 ```
 
@@ -371,10 +382,12 @@ After the transformation the assumption parameters improved and the rest remain 
 
 Let's now try to simplify the model using a backward selection procedure and AIC.
 
-```{r}
+```{r fig.height=5, fig.width=10}
 model_add_num_log_back = step(model_add_num_log, direction = "backward", trace = 0)
 model_add_num_log_back$coefficients
+
 get_overview(model_add_num_log_back)
+
 ```
 
 The number of rooms above the ground were removed from the model. Let's confirm that this is not a significant removal using an ANOVA test:
@@ -414,7 +427,6 @@ loocv_rmse_final_mod
 
 This is a much better value than our previous model, which is super good for prediction purposes. The `model_add_mix` is our final choice. We'll assess it against the test set in the `results` section. We'll also discuss the chosen model in general.
 
-### Practical questions derived from the dataset
 
 ## Results
 
@@ -459,7 +471,144 @@ plot(test_hd$SalePrice, predicted,
 abline(0, 1, lwd = 2, col = "dodgerblue")
 ```
 
-### Practical questions derived from the dataset
+
+
+## Unmerged stuff from ANOVA
+
+
+### Methods
+
+We will begin by loading the housing data stored in `AmesHousing.csv`. We will also define a convenience function `splitDataset` that will randomly split the data into two data sets: *"train"* and *"test"*.
+```{r message=FALSE, warning=FALSE}
+
+splitDataset = function(data) {
+  training = createDataPartition(data$SalePrice, times=1, p=0.80, list=FALSE)
+  return(list(train=data[training,], test=data[-training,]))
+}
+
+
+splits = splitDataset(housing_data)
+training_data = splits$train
+test_data = splits$test
+```
+
+Now we can begin our exploratory data analysis. To examine the relationship between `Neighborhood` and `SalePrice`, we will perform a simple one-way ANOVA to determine whether belonging to different neighborhoods has any effect on `SalePrice` at all.
+
+```{r}
+neighborhood_oneway_anova = aov(SalePrice ~ Neighborhood, data=housing_data)
+neigh_oneway_anova_summary = summary(neighborhood_oneway_anova)
+```
+
+A simple linear model would allow us to infer whether the Ground Living Area (`Gr.Liv.Area`) of a house has any relationship with `SalePrice`.
+
+```{r}
+livarea_model = lm(SalePrice ~ `Gr Liv Area`, data=housing_data)
+livarea_model_summary = summary(livarea_model)
+```
+
+And, in order to infer whether or not a house's living area is more expensive in some neighborhoods than others, we'll perform Analysis of Co-Variance (ANCOVA) by including an interaction term between the continous variable `Gr.Liv.Area` and the categorical variable `Neighborhood`. If the slopes of `Gr.Liv.Area` are different (not parallel) for different neighborhoods, then we would notice a strong interaction between the two predictors.
+```{r}
+## Workaround
+housing_data_alias = housing_data
+housing_data_alias$Gr.Liv.Area = housing_data$`Gr Liv Area`
+
+neigh_livarea_interaction_model = lm(SalePrice ~ Gr.Liv.Area*Neighborhood, data=housing_data_alias)
+neigh_livarea_anova = anova(neigh_livarea_interaction_model)
+p_value_neigh_livarea_interact =anova(neigh_livarea_interaction_model)[3,5]
+```
+
+We will also estimate actual slopes of the lines of `SalePrice` vs. `Gr.Liv.Area` for different neighborhoods to examine any differences.
+```{r}
+livarea_slopes_raw = sim_slopes(neigh_livarea_interaction_model, pred=Gr.Liv.Area, modx=Neighborhood,
+                        johnson_neyman = FALSE,centered= "none", confint=T)
+
+livarea_slopes = data.frame(livarea_slopes_raw$slopes[,1:5],stringsAsFactors=FALSE)
+livarea_slopes[,2:5] = sapply(livarea_slopes[,2:5], as.double)
+livarea_slopes[,2:5] = sapply(livarea_slopes[,2:5], signif, digits=4)
+
+colnames(livarea_slopes)[1] = "Neighborhood"
+colnames(livarea_slopes)[3] = "Std. Err."
+colnames(livarea_slopes)[4] = "2.5%"
+colnames(livarea_slopes)[5] = "97.5%"
+```
+
+
+Lastly, in order to determine whether the effect of `Gr.Liv.Area` on `SalePrice` is not explained by other predictors, we'll calculate the partial correlation coefficient between them with the effect of all other predictors removed. 
+
+
+
+
+### Results
+
+#### Neighborhood Effect on Living Area Price
+
+
+From out first ANOVA of `Neighborhood` and `SalePrice`, it can easily be seen that the neighborhood had a significant effect on the price. We can also see this graphically using a box-plot.
+
+
+```{r fig.height=5, fig.width=10}
+neigh_oneway_anova_summary
+boxplot(SalePrice ~ Neighborhood, data = housing_data,las=2, col=2:8, pch=20, cex=.7,
+        main="Sale Prices by Neighborhood",
+        ylab="Sale Price (in US Dollars")
+```
+
+Similarly, it is easily shown that `Gr.Liv.Area` has an effect on `SalePrice`.
+
+```{r fig.height=5, fig.width=10}
+plot(SalePrice ~ `Gr Liv Area`, data = housing_data,
+     xlab = "Living Area (square feet)",
+     ylab = "Sale Price (US Dollars)",
+     main = "Sale Price vs Ground Living Area",
+     pch  = 20,
+     cex  = .5,
+     col  = "grey")
+abline(livarea_model, col="darkorange", lwd=2)
+```
+
+
+However, we also observe that the interaction model between `Neighborhood` and `Gr.Liv.Area` yielded a near-zero p-value of `r signif(p_value_neigh_livarea_interact,4)`. This **suggests a significant interaction between the two predictors** when predicting `SalePrice`.
+
+```{r}
+signif(p_value_neigh_livarea_interact,4)
+print(neigh_livarea_anova[-4,], signif.stars=FALSE)
+```
+
+Because of this, we obtain different slopes for `Gr.Liv.Area` depending on `Neighborhood`. Each of the slope estimates are the sum of the `Gr.Liv.Area` coefficient and its interaction term with the corresponding `Neighborhood` factor dummy variable. As with all estimates, we can calculate a mean and a confidence interval.
+
+```{r fig.height=5, fig.width=10, htmlcap="Figure X: FOOOBAR"}
+
+## Get the top 5 neighborhoods with the most houses
+ordered_neigh = order(-table(housing_data$Neighborhood))
+
+interact_plot(neigh_livarea_interaction_model, pred=Gr.Liv.Area,
+              modx=Neighborhood,color.class="Qual1",
+              modxvals = names(table(housing_data$Neighborhood)[ordered_neigh][1:6]),
+              x.label="Ground Living Area (square feet)",
+              y.label="Sale Price (US Dollars)") +
+  ggtitle("Gr.Liv.Area Slopes of the 5 Neighborhoods with Most Sales" ) +
+  theme(plot.title = element_text(hjust = 0.5))
+```
+
+```{r htmlcap="Table X: FOOBAR"}
+kable(livarea_slopes)
+```
+
+
+### Discussion
+
+#### Relationship between Neighborhood, Sale Price and Other Predictors
+
+Having observed how both `Neighborhood` and `Gr.Liv.Area` interact with each other and influence `SalePrice`, it is important to highlight that it **does not imply a casual relationship** between them. This becomes more evident when we examine the partial correlation coefficient of `Gr.Liv.Area` and `SalePrice` with the effect of all other 78 predictors removed. We observe that its magnitude is less than 0.01.
+
+```{r}
+without_livarea       = lm(SalePrice ~ . -`Gr Liv Area` , data=housing_data)
+livarea_collinearity  = lm(`Gr Liv Area`~ . -SalePrice, data=housing_data)
+(partial_corr_livarea_saleprice = cor(resid(without_livarea),resid(livarea_collinearity)))
+```
+ 
+Therefore, ground living area is collinear with many of the other predictors available in the dataset, and does not independently predict price. We can, however, **reject the null hypothesis** that the average price per square foot of living space is equal for all neighborhoods with a confidence level $\alpha= 0.01$.
+
 
 ## References
 
