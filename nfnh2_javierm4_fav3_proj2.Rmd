@@ -169,9 +169,6 @@ Before playing around with model selection, let's divide the data into a trainin
 ```{r}
 set.seed(420)
 
-model_performance = data.frame( rmsetrain=c(1),rmsetest=c(1), coefs=c(1)) ## Dataframe to capture all performance results.
-colnames(model_performance) = c("Train RMSE", "Test RMSE","Number of Coefficients")
-
 # Get training indexes randomly (80% of the observations)
 train_index <- sample(seq_len(nrow(housing_data)), size = floor(0.8 * nrow(housing_data)))
 
@@ -240,12 +237,30 @@ get_overview = function(model) {
   betas = get_num_params(model)
   list(loocv_rmse = loocv_rmse, adj_r2 = adj_r2, bp_p_value = bp_p_value, shapiro_p_value = shapiro_p_value, betas = betas)
 }
+
+append_to_result_dataframe = function(df1, rmse_train, rmse_test, num_coefs, name="lol") {
+  df2 = data.frame(rmse_train,rmse_test,num_coefs)
+  rownames(df2) = name
+  print(num_coefs)
+  names(df2) = c("Train RMSE", "Test RMSE","Number of Coefficients")
+  newdf = rbind(df1, df2)
+  return(newdf)
+}
 ```
 
 We can start the process of finding our model by using an additive model as a baseline:
 
-```{r}
+```{r message=FALSE, warning=FALSE}
 model_add = lm(SalePrice ~ ., data = train_hd)
+model_add$xlevels[["Kitchen Qual"]] <- union(model_add$xlevels[["Kitchen Qual"]], levels(test_hd$`Kitchen Qual`))
+rmse_train = sqrt(mean((train_hd$SalePrice - fitted(model_add))^2))
+rmse_test = sqrt(mean((test_hd$SalePrice - predict(model_add, newdata=test_hd))^2))
+
+## Dataframe to capture all performance results.
+model_performance = data.frame( rmsetrain=c(rmse_train),rmsetest=c(rmse_test),
+                                coefs=c(length(coef(model_add))))
+colnames(model_performance) = c("Train RMSE", "Test RMSE","Number of Coefficients")
+rownames(model_performance) = c("Additive Model")
 ```
 
 Let's run the overview function to assess this baseline model:
@@ -260,6 +275,16 @@ Based on the normal Q-Q plot is evident that there is a huge deviation at the ed
 
 ```{r fig.height=5, fig.width=10}
 model_add_log = lm(log(SalePrice) ~ ., data = train_hd)
+
+model_add_log$xlevels[["Kitchen Qual"]] <- union(model_add_log$xlevels[["Kitchen Qual"]],
+                                                 levels(test_hd$`Kitchen Qual`))
+
+rmse_train = sqrt(mean((train_hd$SalePrice - exp(fitted(model_add_log)))^2))
+rmse_test = sqrt(mean((test_hd$SalePrice - exp(predict(model_add_log, newdata=test_hd)))^2))
+model_performance = append_to_result_dataframe(model_performance,rmse_train,
+                                               rmse_test,length(coef(model_add_log)),
+                                               name="Additive Log Response")
+
 get_overview(model_add_log)
 ```
 
@@ -277,6 +302,13 @@ From the resulting plots we can see that observations `1682`, `578`, and `213` s
 ```{r fig.height=5, fig.width=10}
 train_hd = train_hd[-c(1682, 578, 213),]
 model_add_log = lm(log(SalePrice) ~ ., data = train_hd)
+model_add_log$xlevels[["Kitchen Qual"]] <- union(model_add_log$xlevels[["Kitchen Qual"]], levels(test_hd$`Kitchen Qual`))
+rmse_train = sqrt(mean((train_hd$SalePrice - exp(fitted(model_add_log)))^2))
+rmse_test = sqrt(mean((test_hd$SalePrice - exp(predict(model_add_log, newdata=test_hd)))^2))
+model_performance = append_to_result_dataframe(model_performance,rmse_train,
+                                               rmse_test,length(coef(model_add_log)),
+                                               name="Additive Log Response, Outliers Removed")
+
 get_overview(model_add_log)
 ```
 
@@ -378,6 +410,17 @@ There are no values over 5 which is the heuristic used in the course book that s
 We can apply the `get_overview` function to evaluate assumptions as well:
 
 ```{r fig.height=5, fig.width=10}
+
+model_add_num$xlevels[["Kitchen Qual"]] <- union(model_add_num$xlevels[["Kitchen Qual"]],
+                                                 levels(test_hd$`Kitchen Qual`))
+
+rmse_train = sqrt(mean((train_hd$SalePrice - exp(fitted(model_add_num)))^2))
+rmse_test = sqrt(mean((test_hd$SalePrice - exp(predict(model_add_num, newdata=test_hd)))^2))
+model_performance = append_to_result_dataframe(model_performance,rmse_train,
+                                               rmse_test,length(coef(model_add_num)),
+                                               name="Categorical Predictors Removed")
+
+
 get_overview(model_add_num)
 ```
 
@@ -395,6 +438,18 @@ Based on this output, it seems that trying a `log` transformation on `Gr Liv Are
 model_add_num_log = lm(log(SalePrice) ~ `Overall Qual` + `Year Remod/Add` + `Mas Vnr Area` + log(`Total Bsmt SF`) + log(`Gr Liv Area`) + `Full Bath`  + `TotRms AbvGrd` + `Fireplaces` + `Garage Cars`, data = train_hd)
 
 get_overview(model_add_num_log)
+
+
+model_add_num_log$xlevels[["Kitchen Qual"]] <- union(model_add_num_log$xlevels[["Kitchen Qual"]],
+                                                 levels(test_hd$`Kitchen Qual`))
+
+rmse_train = sqrt(mean((train_hd$SalePrice - exp(fitted(model_add_num_log)))^2))
+rmse_test = sqrt(mean((test_hd$SalePrice - exp(predict(model_add_num_log, newdata=test_hd)))^2))
+model_performance = append_to_result_dataframe(model_performance,rmse_train,
+                                               rmse_test,length(coef(model_add_num_log)),
+                                               name="Additive, Log Response, Log Predictors")
+
+
 ```
 
 After the transformation the assumption parameters improved and the rest remain almost the same. We can keep these changes.
@@ -404,10 +459,21 @@ Let's now try to simplify the model using a backward selection procedure and AIC
 ```{r fig.height=5, fig.width=10}
 model_add_num_log_back = step(model_add_num_log, direction = "backward", trace = 0)
 model_add_num_log_back$coefficients
-
 get_overview(model_add_num_log_back)
 
 ```
+
+```{r}
+model_add_num_log_back$xlevels[["Kitchen Qual"]] <- union(model_add_num_log_back$xlevels[["Kitchen Qual"]],
+                                                 levels(test_hd$`Kitchen Qual`))
+
+rmse_train = sqrt(mean((train_hd$SalePrice - exp(fitted(model_add_num_log_back)))^2))
+rmse_test = sqrt(mean((test_hd$SalePrice - exp(predict(model_add_num_log_back, newdata=test_hd)))^2))
+model_performance = append_to_result_dataframe(model_performance,rmse_train,
+                                               rmse_test,length(coef(model_add_num_log_back)),
+                                               name="Backward Search")
+```
+
 
 The number of rooms above the ground were removed from the model. Let's confirm that this is not a significant removal using an ANOVA test:
 
