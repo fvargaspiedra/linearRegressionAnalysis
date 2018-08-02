@@ -438,7 +438,7 @@ pairs(train_hd[, names(sale_price_cor)], pch=20, cex=.5)
 
 Based on this output, it seems that trying a `log` transformation on `Gr Liv Area` and `Total Bsmt SF` can make sense to soften the effect ot extreme values:
 
-```{r fig.height=5, fig.width=10}
+```{r fig.height=5, fig.width=10, message=FALSE, warning=FALSE}
 model_add_num_log = lm(log(SalePrice) ~ `Overall Qual` + `Year Remod/Add` + `Mas Vnr Area` + log(`Total Bsmt SF`) + log(`Gr Liv Area`) + `Full Bath`  + `TotRms AbvGrd` + `Fireplaces` + `Garage Cars`, data = train_hd)
 
 get_overview(model_add_num_log)
@@ -461,7 +461,8 @@ get_overview(model_add_num_log_back)
 
 ```
 
-```{r}
+
+```{r message=FALSE, warning=FALSE}
 model_performance = append_to_result_dataframe(model_performance,model_add_num_log_back,
                                                log_response = T,
                                               name="Backward Search")
@@ -479,7 +480,7 @@ We failed to reject the null hypothesis for any reasonable significance level, w
 
 Let's see whether this model can be improved by adding categorical variables. This can be done using a forward selection procedure and BIC to get the smaller possible model:
 
-```{r}
+```{r message=FALSE, warning=FALSE}
 # The scope includes all the filtered numerical variables plus all the available categorical variables
 model_add_mix = step(model_add_num_log_back, direction = "forward",
                      scope = SalePrice ~ `Overall Qual` + `Year Remod/Add` + `Mas Vnr Area` 
