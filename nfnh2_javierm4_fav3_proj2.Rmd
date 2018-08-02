@@ -169,6 +169,9 @@ Before playing around with model selection, let's divide the data into a trainin
 ```{r}
 set.seed(420)
 
+model_performance = data.frame( rmsetrain=c(1),rmsetest=c(1), coefs=c(1)) ## Dataframe to capture all performance results.
+colnames(model_performance) = c("Train RMSE", "Test RMSE","Number of Coefficients")
+
 # Get training indexes randomly (80% of the observations)
 train_index <- sample(seq_len(nrow(housing_data)), size = floor(0.8 * nrow(housing_data)))
 
@@ -266,7 +269,7 @@ The outliers can be identified by using `plot` function:
 
 ```{r fig.height=10, fig.width=10, warning=FALSE}
 par(mfrow=c(2,2))
-plot(model_add_log)
+plot(model_add_log, cex=.7, col="dodgerblue")
 ```
 
 From the resulting plots we can see that observations `1682`, `578`, and `213` seem to be outliers. Let's remove them:
@@ -419,7 +422,21 @@ Let's see whether this model can be improved by adding categorical variables. Th
 
 ```{r}
 # The scope includes all the filtered numerical variables plus all the available categorical variables
-model_add_mix = step(model_add_num_log_back, direction = "forward", scope = SalePrice ~ `Overall Qual` + `Year Remod/Add` + `Mas Vnr Area` + log(`Total Bsmt SF`) + log(`Gr Liv Area`) + `Full Bath` + `Fireplaces` + `Garage Cars` + Street + `MS SubClass` + `MS Zoning` + `Lot Shape` + `Land Contour` + Utilities + `Lot Config` + `Land Slope` + Neighborhood + `Condition 1` + `Condition 2` + `Bldg Type` + `House Style` + `Roof Style` + `Roof Matl` + `Exterior 1st` + `Exterior 2nd` + `Mas Vnr Type` + `Exter Qual` + `Exter Cond` + Foundation + `Bsmt Qual` + `Bsmt Cond` + `Bsmt Exposure` + `BsmtFin Type 1` + `BsmtFin Type 2` + Heating + `Heating QC` + `Central Air` + Electrical + `Kitchen Qual` + Functional + `Garage Type` + `Garage Finish` + `Garage Qual` + `Garage Cond` + `Paved Drive` + `Sale Type` + `Sale Condition`, k = log(length(resid(model_add_num_log_back))), trace = 0)
+model_add_mix = step(model_add_num_log_back, direction = "forward",
+                     scope = SalePrice ~ `Overall Qual` + `Year Remod/Add` + `Mas Vnr Area` 
+                     + log(`Total Bsmt SF`) + log(`Gr Liv Area`) + `Full Bath` + `Fireplaces` 
+                     + `Garage Cars` + Street + `MS SubClass`  + `MS Zoning` + `Lot Shape` + `Land Contour` 
+                     + Utilities + `Lot Config` + `Land Slope` 
+                     + Neighborhood + `Condition 1` + `Condition 2` + `Bldg Type` + `House Style` + `Roof Style`
+                     + `Roof Matl` + `Exterior 1st` + `Exterior 2nd` + `Mas Vnr Type` + `Exter Qual` 
+                     + `Exter Cond`  + Foundation + `Bsmt Qual` + `Bsmt Cond` + `Bsmt Exposure` 
+                     + `BsmtFin Type 1`  + `BsmtFin Type 2` + Heating + `Heating QC` 
+                     + `Central Air` + Electrical 
+                     + `Kitchen Qual`  + Functional + `Garage Type` 
+                     + `Garage Finish` + `Garage Qual` + `Garage Cond` + `Paved Drive` 
+                     + `Sale Type` + `Sale Condition`,
+                     k = log(length(resid(model_add_num_log_back))),
+                     trace = 0)
 ```
 
 We can now run our diagnostics for the obtained model:
@@ -573,7 +590,7 @@ Notice how the test RMSE is significantly reduced which proves that the model is
 
 Let's now focus on the explanatory capabilities of our model. Even though we were able to siginificantly reduced the amount of predictors used (20 out of 80), the model is not passing the assumptions tests, and there is an evident deviance on the normal Q-Q plot. Let's review this information:
 
-```{r}
+```{r fig.height=5, fig.width=10}
 get_overview(model_add_mix)
 ```
 
@@ -590,6 +607,7 @@ neigh_oneway_anova_summary
 As you can see the p-value is really small, so we reject the null hypothesis, which means that `Neighborhood` does have an effect.
 
 ```{r fig.height=8, fig.width=10}
+par(mar = c(5, 5, 4, 2), mgp = c(4, 1, 0)) ## Correct the margins
 boxplot(SalePrice ~ Neighborhood, data = housing_data,las=2, col=2:8, pch=20, cex=.7,
         main="Sale Prices by Neighborhood",
         ylab="Sale Price (in US Dollars")
@@ -648,6 +666,11 @@ This section will be focused on analyzing the usefulness of the chosen model bas
 - Two plots were provided to compare predicted vs actual sale prices for both, the training set and the test set. There is a nice trend close to the identity line and an obvious increase of variance for expensive houses. From these results we can conclude that our model is better on predicting average priced houses.
 - RMSE for both, training and test set, were provided. The RMSE of the test set (`r rmse_test`) is lower than the training set (`r rmse_train`) which give us confidence around not having any overfitting issue.
 - RMSE is radically improved by filtering house prices lower than 200000 dollars. This confirms our conclusion around the model being better on predicting average priced houses.
+
+```{r}
+kable(model_performance)
+```
+
 
 #### Explanation
 
