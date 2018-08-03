@@ -374,7 +374,7 @@ sale_price_cor = cor(train_hd[sapply(train_hd, is.numeric)])[,"SalePrice"]
 sale_price_cor
 ```
 
-```{r}
+```{r htmlcap=""}
 # Get correlation list of all numerical variables against Sale Price
 data_cor = train_hd[sapply(train_hd, is.numeric)]
 
@@ -689,6 +689,21 @@ library(relaimpo)
 relImportance = calc.relimp(model_add_mix, type = c("lmg"), rela = TRUE) # calculate relative importance scaled to 100
 sort(relImportance$lmg, decreasing=TRUE)  # relative importance
 ```
+
+```{r}
+predictors_mod = c("log(`Gr Liv Area`)", "Overall Qual", "Neighborhood", "Garage Cars", "Kitchen Qual", "Exter Qual", "MS SubClass", "log(`Total Bsmt SF`)", "Full Bath", "Year Remod/Add", "Fireplaces", "BsmtFin Type 1", "MS Zoning", "Mas Vnr Area", "Bsmt Exposure", "Mas Vnr Type", "Sale Condition", "Central Air", "Functional",  "Exter Cond")
+
+values_mod = c(13.15, 12.16, 10.12, 6.89, 6.72, 6.68, 6.40, 5.96, 5.06, 4.87, 4.33, 3.45, 2.63, 2.58, 2.55, 2.18, 2.03, 1.03, 0.68, 0.51)
+
+sum(0.131545225, 0.121646594, 0.101215099, 0.068901177, 0.067237683, 0.066841071, 0.064003974, 0.059600173, 0.050604498, 0.048683443, 0.043316993, 0.034459070, 0.026273611, 0.025847922, 0.025490972, 0.021807077, 0.020280687, 0.010313463, 0.006822245, 0.005109024)
+
+mydata_mod = data.frame(predictors_mod, values_mod)
+p = ggplot(mydata_mod, aes(reorder(predictors_mod, -values_mod), values_mod))
+p +geom_bar(stat = "identity") + theme(axis.text.x = element_text(angle = 90, hjust = 1)) + xlab("Predictors") + ylab("Predictor's %tage contribution to the model")
+
+
+```
+
 
 
 ### Neighborhood Effect on Living Area Price
