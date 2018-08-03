@@ -63,9 +63,9 @@ There are several reasons why the team decided to use this dataset and why this 
 1. **Model simplification**: This dataset offers many variables. Even though accuracy tends to improve as the number of predictors increases, larger models also increase complexity and become more difficult to interpret. Complex models are also highly succeptible to overfitting. The goal of this project is to derive a model using a subset of the predictor variables while achieving a comparable level of performance.
 2. **Cleanness**: The dataset is well curated and does not require extensive cleansing. This will allow the team to focus on analyzing the data itself.
 3. **Questions**: From a personal interest perspective, this dataset is related to a frequent activity: buying a house. This is a well-known activity that allows for some interesting questions:
-    - **How effectively can we predict the price of a house given a set of explanatory variables?** A test/training set evaluation process can help us measure the accuracy under acceptable error ranges. This could give us some insight to answer other questions such as: *"Does the time of year affect the sale price of the house?"*
+    - **How effectively can we predict the price of a house given a set of explanatory variables?** A test/training set evaluation process can help us measure the accuracy under acceptable error ranges.
     - **Can we identify unusual observations that might be affecting the model?** Understanding leverage, outliers, and influential points in the model will allow us to identify unusual observations in our regressions model.
-    - **Are there any interactions between the variables affecting the price of the houses?** Experimenting with dummy variables and interaction models might help answer questions such as: *"Do some neighborhoods value having a pool or a garage more than others?"*
+    - **Are there any interactions between the variables affecting the price of the houses?**
     - **What are the most influential predictors?** Hypothesis tests might be the best path in this case.
     - **Can we build a reduced version of the model without sacrificing accuracy?** Use variable selection procedures, collinearity, and ANOVA evaluation to find a good model for the housing dataset from a set of possible models.
     - **Are transformations necessary to improve the accuracy of the model?** Transformation techniques and assumption tests might lead us to the answer.
@@ -246,6 +246,7 @@ get_overview = function(model) {
   list(loocv_rmse = loocv_rmse, adj_r2 = adj_r2, bp_p_value = bp_p_value, shapiro_p_value = shapiro_p_value, betas = betas)
 }
 
+## Convenience function to generate a table with the RMSE's of all the models.
 append_to_result_dataframe = function(df1, model, log_response = TRUE , name) {
   
   train_fitted_values = fitted(model)
@@ -298,7 +299,7 @@ From the results above you can note that there are troubles on every resulting p
 
 Based on the normal Q-Q plot is evident that there is a huge deviation at the edges of the plot. We can apply a log transformation on the response and check whether this minimizes the effect:
 
-```{r fig.height=5, fig.width=10}
+```{r fig.height=5, fig.width=10, message=TRUE, warning=FALSE}
 model_add_log = lm(log(SalePrice) ~ ., data = train_hd)
 
 model_performance = append_to_result_dataframe(model_performance,model_add_log,
@@ -318,7 +319,7 @@ plot(model_add_log, cex=.7, col="dodgerblue")
 
 From the resulting plots we can see that observations `1682`, `578`, and `213` seem to be outliers. Let's remove them:
 
-```{r fig.height=5, fig.width=10}
+```{r fig.height=5, fig.width=10, warning=FALSE}
 train_hd = train_hd[-c(1682, 578, 213),]
 model_add_log = lm(log(SalePrice) ~ ., data = train_hd)
 model_performance = append_to_result_dataframe(model_performance,model_add_log,
@@ -375,7 +376,9 @@ sale_price_cor = cor(train_hd[sapply(train_hd, is.numeric)])[,"SalePrice"]
 sale_price_cor
 ```
 
-```{r htmlcap=" "}
+We are also plotting a correlation matrix that helps us decide which predictors to remove.
+
+```{r fig.height=5, fig.width=10, message=FALSE, warning=FALSE, htmlcap=""}
 # Get correlation list of all numerical variables against Sale Price
 data_cor = train_hd[sapply(train_hd, is.numeric)]
 
@@ -387,13 +390,10 @@ o <- hclust(as.dist(1-corr))$order
 
 library(qtlcharts)
 
-
 iplotCorr(data_cor, corr=corr[o,o], reorder=TRUE, chartOpts=list(scatcolors="lightblue", cortitle="Correlation matrix", scattitle="Scatterplot", caption=paste("Click on the heatmap on the left to see", "corresponding scatterplots on the right.")))
-
-
 ```
 
-We can then remove those values that are low in magnitude. We'll choose a threshold of 0.4:
+We can then remove those values that are low in magnitude. We'll choose a threshold of 0.4 after visually inspecting the correlation matrix.
 
 ```{r}
 # Filter correlations with magnitude smaller than a specified threshold
@@ -435,7 +435,7 @@ There are no values over 5 which is the heuristic used in the course book that s
 
 We can apply the `get_overview` function to evaluate assumptions as well:
 
-```{r fig.height=5, fig.width=10}
+```{r fig.height=5, fig.width=10, warning=FALSE}
 model_performance = append_to_result_dataframe(model_performance,model_add_num,
                                                log_response = T,
                                                name="Categorical Predictors Removed")
@@ -453,7 +453,7 @@ pairs(train_hd[, names(sale_price_cor)], pch=20, cex=.5)
 
 Based on this output, it seems that trying a `log` transformation on `Gr Liv Area` and `Total Bsmt SF` can make sense to soften the effect ot extreme values:
 
-```{r fig.height=5, fig.width=10, message=FALSE, warning=FALSE}
+```{r fig.height=5, fig.width=10, warning=FALSE}
 model_add_num_log = lm(log(SalePrice) ~ `Overall Qual` + `Year Remod/Add` + `Mas Vnr Area` + log(`Total Bsmt SF`) + log(`Gr Liv Area`) + `Full Bath`  + `TotRms AbvGrd` + `Fireplaces` + `Garage Cars`, data = train_hd)
 
 get_overview(model_add_num_log)
@@ -495,7 +495,7 @@ We failed to reject the null hypothesis for any reasonable significance level, w
 
 Let's see whether this model can be improved by adding categorical variables. This can be done using a forward selection procedure and BIC to get the smaller possible model:
 
-```{r message=FALSE, warning=FALSE}
+```{r message=TRUE, warning=FALSE}
 # The scope includes all the filtered numerical variables plus all the available categorical variables
 
 model_add_mix = step(model_add_num_log_back, direction = "forward",
@@ -517,9 +517,6 @@ model_add_mix = step(model_add_num_log_back, direction = "forward",
 model_performance = append_to_result_dataframe(model_performance, model_add_mix,
                                                log_response = T,
                                               name="Forward Categorical Predictor Search")
-
-test_fitted_values =  predict(model_add_mix, newdata=test_hd)
-rmse_test = sqrt(mean((test_hd$SalePrice - test_fitted_values)^2))
 
 ```
 
@@ -676,13 +673,13 @@ get_overview(model_add_mix)
 
 As you can see both assumption tests (Shapiro and Breusch) are returning really small values which is a clear violation of normality and constant variance. This means that any interpretation coming from the coefficients is suspect and this model shouldn't be used for explanatory purposes as it is now. Moreover, even if the assumptions weren't violated, the use of 20 predictors and 89 coefficients would make an explanation almost impossible to digest for a human.
 
+Estimating each predictor's contribution to the variance in the response provides with an explanation of the relationships between the observed attributes and the response. The bar chart below visualizes the correlation of each predictor and the response. 
+
 ```{r, eval=FALSE}
 ## This chunk's excecution time is over 10 minutes.
 relImportance = calc.relimp(model_add_mix, type = c("lmg"), rela = TRUE) # calculate relative importance scaled to 100
 sort(relImportance$lmg, decreasing=TRUE)  # relative importance
 ```
-
-Estimating each predictor's contribution to the variance in the response provides with an explanation of the relationships between the observed attributes and the response. The bar chart below visualizes the correlation of each predictor and the resposne. 
 
 ```{r include=FALSE}
 
@@ -770,6 +767,7 @@ This section will be focused on analyzing the usefulness of the chosen model bas
 - Two plots were provided to compare predicted vs actual sale prices for both, the training set and the test set. There is a nice trend close to the identity line and an obvious increase of variance for expensive houses. From these results we can conclude that our model is better on predicting average priced houses.
 - RMSE for both, training and test set, were provided. The RMSE of the test set (`r rmse_test`) is lower than the training set (`r rmse_train`) which give us confidence around not having any overfitting issue.
 - RMSE is radically improved by filtering house prices lower than 200000 dollars. This confirms our conclusion around the model being better on predicting average priced houses.
+- Below you can see a table with a summary of RMSE of the models tested.
 
 ```{r}
 kable(model_performance,row.names = TRUE)
@@ -780,7 +778,7 @@ kable(model_performance,row.names = TRUE)
 
 - The normality and constant variance assumptions are violated by the model. Even though the goal of creating a model with a reduced amount of predictors was achieved, we couldn't improve the assumption metrics. In other words, the coefficients shouldn't be used to try to explain any relationship.
 
-### Relationship between Neighborhood, Sale Price and Other Predictors
+### Relationship between Neighborhood and Sale Price
 
 Having observed how both `Neighborhood` and `Gr.Liv.Area` interact with each other and influence `SalePrice`, it is important to highlight that it **does not imply a causal relationship** between them. This becomes more evident when we examine the partial correlation coefficient of `Gr.Liv.Area` and `SalePrice` with the effect of all other 78 predictors removed. We note that its magnitude is less than 0.01.
 
