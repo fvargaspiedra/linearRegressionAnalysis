@@ -258,18 +258,18 @@ append_to_result_dataframe = function(df1, model, log_response = TRUE , name) {
   rmse_train = sqrt(mean((train_hd$SalePrice - train_fitted_values)^2))
   rmse_test = sqrt(mean((test_hd$SalePrice - test_fitted_values)^2))
   
+  columns = c("Model Description","Train RMSE", "Test RMSE","Number of Coefficients")
   
   if(is.null(df1)) {
-    df = data.frame( rmsetrain=c(rmse_train),rmsetest=c(rmse_test),
+    df = data.frame( desc=c(name),rmsetrain=c(rmse_train),rmsetest=c(rmse_test),
                                 coefs=c(length(coef(model))))
-    colnames(df) = c("Train RMSE", "Test RMSE","Number of Coefficients")
-    rownames(df) = c("Additive Model")
+    colnames(df) = columns
+    
     return(df)
   }
   else {
-    df2 = data.frame(rmse_train, rmse_test, length(coef(model)))
-    rownames(df2) = name
-    names(df2) = c("Train RMSE", "Test RMSE","Number of Coefficients")
+    df2 = data.frame(name, rmse_train, rmse_test, length(coef(model)))
+    names(df2) = columns
     newdf = rbind(df1, df2)
     return(newdf)
   }
@@ -778,7 +778,7 @@ This section will be focused on analyzing the usefulness of the chosen model bas
 - RMSE is radically improved by filtering house prices lower than 200000 dollars. This confirms our conclusion around the model being better on predicting average priced houses.
 
 ```{r}
-kable(model_performance)
+kable(model_performance,row.names = TRUE)
 ```
 
 
