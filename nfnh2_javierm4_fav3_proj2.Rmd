@@ -16,12 +16,13 @@ urlcolor: cyan
 library(knitr)
 library(jtools)
 library(ggplot2)
+library(relaimpo)
 
 #knitr::opts_chunk$set(echo = TRUE)
 #options(digits=8)
 knit_hooks$set(htmlcap = function(before, options, envir) {
   if(!before) {
-      paste('<p style="text-align: center;" class="caption">',options$htmlcap,"</p>",sep="")
+      paste("<br/>",sep="")
     }
 })
 ```
@@ -374,7 +375,7 @@ sale_price_cor = cor(train_hd[sapply(train_hd, is.numeric)])[,"SalePrice"]
 sale_price_cor
 ```
 
-```{r htmlcap=""}
+```{r htmlcap=" "}
 # Get correlation list of all numerical variables against Sale Price
 data_cor = train_hd[sapply(train_hd, is.numeric)]
 
@@ -401,13 +402,6 @@ sale_price_cor
 ```
 
 We now have a smaller group of numerical predictors to choose from. By reading the documentation of this set of parameters one can see that some of them are the result of the others or are very related. This obviously leads to collinearity issues.
-
-We used the whole correlation matrix to compare between those predictors that we thought had a relation to decide which to keep and which to remove:
-
-```{r}
-# Get correlation list of all numerical variables against Sale Price
-cor(train_hd[,names(sale_price_cor)])
-```
 
 Based on the previous matrix, `Year Built` and `Year Remod/Add` are correlated. If there was no remodelation the year built is used on `Year Remod/Add`, so let's keep `Year Remod/Add` only. 
 
@@ -683,25 +677,25 @@ get_overview(model_add_mix)
 As you can see both assumption tests (Shapiro and Breusch) are returning really small values which is a clear violation of normality and constant variance. This means that any interpretation coming from the coefficients is suspect and this model shouldn't be used for explanatory purposes as it is now. Moreover, even if the assumptions weren't violated, the use of 20 predictors and 89 coefficients would make an explanation almost impossible to digest for a human.
 
 ```{r, eval=FALSE}
-# install.packages("relaimpo")
-
-library(relaimpo)
+## This chunk's excecution time is over 10 minutes.
 relImportance = calc.relimp(model_add_mix, type = c("lmg"), rela = TRUE) # calculate relative importance scaled to 100
 sort(relImportance$lmg, decreasing=TRUE)  # relative importance
 ```
 
-```{r}
+Estimating each predictor's contribution to the variance in the response provides with an explanation of the relationships between the observed attributes and the response. The bar chart below visualizes the correlation of each predictor and the resposne. 
+
+```{r include=FALSE}
+
+### Harcoded results of the previous chunk
 predictors_mod = c("log(`Gr Liv Area`)", "Overall Qual", "Neighborhood", "Garage Cars", "Kitchen Qual", "Exter Qual", "MS SubClass", "log(`Total Bsmt SF`)", "Full Bath", "Year Remod/Add", "Fireplaces", "BsmtFin Type 1", "MS Zoning", "Mas Vnr Area", "Bsmt Exposure", "Mas Vnr Type", "Sale Condition", "Central Air", "Functional",  "Exter Cond")
 
 values_mod = c(13.15, 12.16, 10.12, 6.89, 6.72, 6.68, 6.40, 5.96, 5.06, 4.87, 4.33, 3.45, 2.63, 2.58, 2.55, 2.18, 2.03, 1.03, 0.68, 0.51)
+```
 
-sum(0.131545225, 0.121646594, 0.101215099, 0.068901177, 0.067237683, 0.066841071, 0.064003974, 0.059600173, 0.050604498, 0.048683443, 0.043316993, 0.034459070, 0.026273611, 0.025847922, 0.025490972, 0.021807077, 0.020280687, 0.010313463, 0.006822245, 0.005109024)
-
+```{r}
 mydata_mod = data.frame(predictors_mod, values_mod)
 p = ggplot(mydata_mod, aes(reorder(predictors_mod, -values_mod), values_mod))
-p +geom_bar(stat = "identity") + theme(axis.text.x = element_text(angle = 90, hjust = 1)) + xlab("Predictors") + ylab("Predictor's %tage contribution to the model")
-
-
+p + geom_bar(stat = "identity") + theme(axis.text.x = element_text(angle = 90, hjust = 1)) + xlab("Predictors") + ylab("Percentage of the variance") + ggtitle("Predictors Contribution to the Response")
 ```
 
 
