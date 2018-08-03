@@ -8,11 +8,14 @@ output:
   pdf_document: default
 urlcolor: cyan
 ---
+```{r message=FALSE, echo=FALSE}
+#options("scipen"=100, "digits"=4)
+```
 
 ```{r setup, include=FALSE}
 library(knitr)
-library(caret)
 library(jtools)
+library(ggplot2)
 
 #knitr::opts_chunk$set(echo = TRUE)
 #options(digits=8)
@@ -175,6 +178,7 @@ train_index <- sample(seq_len(nrow(housing_data)), size = floor(0.8 * nrow(housi
 # Divide the data
 train_hd <- housing_data[train_index, ]
 test_hd <- housing_data[-train_index, ]
+test_hd = test_hd[-which(test_hd$`Kitchen Qual` == "Po"),]
 ```
 
 After splitting the data we now have `r dim(train_hd)[1]` observations for training and `r dim(test_hd)[1]` observations for test.
@@ -241,8 +245,8 @@ get_overview = function(model) {
 append_to_result_dataframe = function(df1, model, log_response = TRUE , name="lol") {
   
   
-  model$xlevels[["Kitchen Qual"]] <- union(model$xlevels[["Kitchen Qual"]],
-                                                 levels(test_hd$`Kitchen Qual`))
+  #model$xlevels[["Kitchen Qual"]] <- union(model$xlevels[["Kitchen Qual"]],
+  #                                               levels(test_hd$`Kitchen Qual`))
 
   train_fitted_values = fitted(model)
   if(log_response) {
@@ -371,6 +375,24 @@ sale_price_cor = cor(train_hd[sapply(train_hd, is.numeric)])[,"SalePrice"]
 sale_price_cor
 ```
 
+```{r}
+# Get correlation list of all numerical variables against Sale Price
+data_cor = train_hd[sapply(train_hd, is.numeric)]
+
+# use Spearman's correlation
+corr <- cor(data_cor, method="spearman", use="pairwise.complete.obs")
+
+# order by hierarchical clustering
+o <- hclust(as.dist(1-corr))$order
+
+library(qtlcharts)
+
+
+iplotCorr(data_cor, corr=corr[o,o], reorder=TRUE, chartOpts=list(scatcolors="lightblue", cortitle="Correlation matrix", scattitle="Scatterplot", caption=paste("Click on the heatmap on the left to see", "corresponding scatterplots on the right.")))
+
+
+```
+
 We can then remove those values that are low in magnitude. We'll choose a threshold of 0.4:
 
 ```{r}
@@ -482,6 +504,9 @@ Let's see whether this model can be improved by adding categorical variables. Th
 
 ```{r message=FALSE, warning=FALSE}
 # The scope includes all the filtered numerical variables plus all the available categorical variables
+
+
+
 model_add_mix = step(model_add_num_log_back, direction = "forward",
                      scope = SalePrice ~ `Overall Qual` + `Year Remod/Add` + `Mas Vnr Area` 
                      + log(`Total Bsmt SF`) + log(`Gr Liv Area`) + `Full Bath` + `Fireplaces` 
@@ -498,9 +523,14 @@ model_add_mix = step(model_add_num_log_back, direction = "forward",
                      k = log(length(resid(model_add_num_log_back))),
                      trace = 0)
 
+#test_hd = test_hd[-which(test_hd$`Kitchen Qual` == "Po"),]
 model_performance = append_to_result_dataframe(model_performance, model_add_mix,
                                                log_response = T,
                                               name="Forward Categorical Predictor Search")
+
+test_fitted_values =  predict(model_add_mix, newdata=test_hd)
+rmse_test = sqrt(mean((test_hd$SalePrice - test_fitted_values)^2))
+
 ```
 
 We can now run our diagnostics for the obtained model:
@@ -604,10 +634,10 @@ Let's do the same for the test set. The predicted values are first stored in a v
 ```{r}
 # We are removing a conflicting observation for "Kitchen Qual" that is only present on the test set
 # This is because there is only one observation with that value
-test_hd = test_hd[-which(test_hd$`Kitchen Qual` == "Po"),]
+#test_hd = test_hd[-which(test_hd$`Kitchen Qual` == "Po"),]
 
 # Predict values
-predicted = exp(predict(model_add_mix, test_hd))
+predicted = exp(predict(model_add_mix, newdata=test_hd))
 ```
 
 We can now plot for the test set. These are unbiased results that can tell us a lot about the chosen model:
@@ -659,6 +689,15 @@ get_overview(model_add_mix)
 ```
 
 As you can see both assumption tests (Shapiro and Breusch) are returning really small values which is a clear violation of normality and constant variance. This means that any interpretation coming from the coefficients is suspect and this model shouldn't be used for explanatory purposes as it is now. Moreover, even if the assumptions weren't violated, the use of 20 predictors and 89 coefficients would make an explanation almost impossible to digest for a human.
+
+```{r, eval=FALSE}
+# install.packages("relaimpo")
+
+library(relaimpo)
+relImportance = calc.relimp(model_add_mix, type = c("lmg"), rela = TRUE) # calculate relative importance scaled to 100
+sort(relImportance$lmg, decreasing=TRUE)  # relative importance
+```
+
 
 ### Neighborhood Effect on Living Area Price
 
@@ -767,7 +806,10 @@ install.packages("readr")
 install.packages("lmtest")
 install.packages("faraway")
 install.packages("knitr")
+install.packages("ggplot2")
 install.packages("jtools")
+install.packages("qtlcharts")
+install.packages("relaimpo")
 ```
 
 ## References
