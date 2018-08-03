@@ -178,6 +178,9 @@ train_index <- sample(seq_len(nrow(housing_data)), size = floor(0.8 * nrow(housi
 # Divide the data
 train_hd <- housing_data[train_index, ]
 test_hd <- housing_data[-train_index, ]
+
+# We are removing a conflicting observation for "Kitchen Qual" that is only present on the test set
+# This is because there is only one observation with that value
 test_hd = test_hd[-which(test_hd$`Kitchen Qual` == "Po"),]
 ```
 
@@ -242,12 +245,8 @@ get_overview = function(model) {
   list(loocv_rmse = loocv_rmse, adj_r2 = adj_r2, bp_p_value = bp_p_value, shapiro_p_value = shapiro_p_value, betas = betas)
 }
 
-append_to_result_dataframe = function(df1, model, log_response = TRUE , name="lol") {
+append_to_result_dataframe = function(df1, model, log_response = TRUE , name) {
   
-  
-  #model$xlevels[["Kitchen Qual"]] <- union(model$xlevels[["Kitchen Qual"]],
-  #                                               levels(test_hd$`Kitchen Qual`))
-
   train_fitted_values = fitted(model)
   if(log_response) {
     train_fitted_values = exp(train_fitted_values)
@@ -505,8 +504,6 @@ Let's see whether this model can be improved by adding categorical variables. Th
 ```{r message=FALSE, warning=FALSE}
 # The scope includes all the filtered numerical variables plus all the available categorical variables
 
-
-
 model_add_mix = step(model_add_num_log_back, direction = "forward",
                      scope = SalePrice ~ `Overall Qual` + `Year Remod/Add` + `Mas Vnr Area` 
                      + log(`Total Bsmt SF`) + log(`Gr Liv Area`) + `Full Bath` + `Fireplaces` 
@@ -523,7 +520,6 @@ model_add_mix = step(model_add_num_log_back, direction = "forward",
                      k = log(length(resid(model_add_num_log_back))),
                      trace = 0)
 
-#test_hd = test_hd[-which(test_hd$`Kitchen Qual` == "Po"),]
 model_performance = append_to_result_dataframe(model_performance, model_add_mix,
                                                log_response = T,
                                               name="Forward Categorical Predictor Search")
@@ -632,10 +628,6 @@ Based on the previous plot, the points are very close to the identity line which
 Let's do the same for the test set. The predicted values are first stored in a variable so we can use it later to calculate more results.
 
 ```{r}
-# We are removing a conflicting observation for "Kitchen Qual" that is only present on the test set
-# This is because there is only one observation with that value
-#test_hd = test_hd[-which(test_hd$`Kitchen Qual` == "Po"),]
-
 # Predict values
 predicted = exp(predict(model_add_mix, newdata=test_hd))
 ```
